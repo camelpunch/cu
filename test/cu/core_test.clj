@@ -1,7 +1,5 @@
 (ns cu.core-test
-  (:require [clojure.test :refer :all]
+  (:require [expectations :refer :all]
             [cu.core :refer :all]))
 
-(deftest a-test
-  (testing "FIXME, I fail."
-    (is (= 0 1))))
+(expect 3 3)
