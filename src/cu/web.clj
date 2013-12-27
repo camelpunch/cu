@@ -15,7 +15,8 @@
           (sh "rm" "-r" workspace-dir)
           (sh "git" "clone" (get-in payload ["repository" "url"]) workspace-dir)
           (spit "/tmp/cu-workspaces/test-project/log"
-                (:out (sh (str workspace-dir "/run-pipeline"))))))
+                (:out (sh (str workspace-dir "/run-pipeline"))))
+          {:status 201}))
 
   (not-found "Not Found"))
 

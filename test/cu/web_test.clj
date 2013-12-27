@@ -26,6 +26,27 @@
     (spit full-path contents)
     (chmod+x full-path)))
 
+(defn mkdir-p [path] (sh "mkdir" "-p" path))
+
+(defn create-git-repo
+  [path script-filename script]
+  (doto path
+    mkdir-p
+    rm-git-dir
+    (write-executable script-filename script)
+    git-init
+    (git "add" script-filename)
+    (git "commit" "-m" "first commit")))
+
+; gives 201 response
+(expect {:status 201}
+        (in
+          (app (body (request :post "/push")
+                     {:payload
+                      (json/write-str {:repository
+                                       {:name "foo"
+                                        :url (create-git-repo git-repo-path "run-pipeline" "foo")}})}))))
+
 ; writes output of requested command to a log file
 (expect-let [evidence-that-command-ran (str (UUID/randomUUID))
 
@@ -41,13 +62,7 @@
 
             evidence-that-command-ran
             (do
-             (doto git-repo-path
-               rm-git-dir
-               (write-executable script-filename script)
-               git-init
-               (git "add" script-filename)
-               (git "commit" "-m" "first commit"))
-
+              (create-git-repo git-repo-path script-filename script)
               (sh "rm" log-path)
               (app (body (request :post "/push") {:payload json-payload}))
               (-> log-path slurp trim-newline)))
