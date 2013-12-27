@@ -8,7 +8,7 @@ A work-in-progress distributed continuous integration / delivery system.
 * Trigger a build from a GitHub receive hook HTTP POST request, or other POST
 request with certain payload data.
 * Use message queues (currently SQS) to distribute work.
-* Commit-centric (git).
+* Commit-centric (git for now).
 * A pipeline is a series of commands run against a single version of a
 repository.
 * If you need to work with multiple repositories, build a parent repo with
