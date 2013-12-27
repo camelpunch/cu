@@ -8,13 +8,14 @@
 
 (defroutes app-routes
   (POST "/push" [_ & {raw-payload :payload}]
-        (let [basedir "/tmp/cu-workspaces/test-project"
+        (let [workspaces-dir "/tmp/cu-workspaces"
+              basedir (str workspaces-dir "/test-project")
               workspace-dir (str basedir "/workspace")
               payload (json/read-str raw-payload)]
           (.mkdirs (java.io.File. basedir))
           (sh "rm" "-r" workspace-dir)
           (sh "git" "clone" (get-in payload ["repository" "url"]) workspace-dir)
-          (spit "/tmp/cu-workspaces/test-project/log"
+          (spit (str basedir "/log")
                 (:out (sh (str workspace-dir "/run-pipeline"))))
           {:status 201}))
 
