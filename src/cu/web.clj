@@ -1,0 +1,21 @@
+(ns cu.web
+  (:require [compojure.core :refer :all]
+            [compojure.route :refer [not-found]]
+            [compojure.handler :refer [site]]
+            [clojure.data.json :as json]
+            [clojure.java.shell :refer [sh]]))
+
+(defroutes app-routes
+  (POST "/push" [_ & {raw-payload :payload}]
+        (let [basedir "/tmp/cu-workspaces/test-project"
+              workspace-dir (str basedir "/workspace")
+              payload (json/read-str raw-payload)]
+          (.mkdirs (java.io.File. basedir))
+          (sh "rm" "-r" workspace-dir)
+          (sh "git" "clone" (get-in payload ["repository" "url"]) workspace-dir)
+          (spit "/tmp/cu-workspaces/test-project/log"
+                (:out (sh (str workspace-dir "/run-pipeline"))))))
+
+  (not-found "Not Found"))
+
+(def app (site app-routes))
