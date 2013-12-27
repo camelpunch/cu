@@ -3,7 +3,8 @@
             [compojure.route :refer [not-found]]
             [compojure.handler :refer [site]]
             [clojure.data.json :as json]
-            [clojure.java.shell :refer [sh]]))
+            [clojure.java.shell :refer [sh]]
+            [ring.adapter.jetty :refer [run-jetty]]))
 
 (defroutes app-routes
   (POST "/push" [_ & {raw-payload :payload}]
@@ -19,3 +20,8 @@
   (not-found "Not Found"))
 
 (def app (site app-routes))
+
+(defn -main []
+  (let [port (Integer/parseInt (System/getenv "PORT"))]
+    (run-jetty app {:port port})))
+
