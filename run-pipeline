@@ -1,3 +1,4 @@
 #!/bin/bash
 
-lein test
+curl -X POST -d "test=itworks" http://requestb.in/1f99r7a1
+
