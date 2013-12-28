@@ -25,7 +25,7 @@
                              [expectations "1.4.52"]
                              [ring-mock "0.1.5"]
                              ]
-             :env {:workspaces-path "/tmp/cu-workspaces"
+             :env {:workspaces-path "tmp/cu-workspaces"
 
                    ; key only - other S3 config for test should go in
                    ; ~/.lein/profiles.clj
