@@ -8,7 +8,9 @@
                  [compojure "1.1.6"]
                  [environ "0.4.0"]
                  [org.clojure/clojure "1.5.1"]
+                 [org.clojure/data.codec "0.1.0"]
                  [org.clojure/data.json "0.2.3"]
+                 [ring-basic-authentication "1.0.2"]
                  [ring/ring-jetty-adapter "1.1.0"]
                  ]
   :plugins [

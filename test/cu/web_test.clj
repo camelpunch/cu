@@ -2,13 +2,14 @@
   (:import java.util.UUID)
   (:require
     [aws.sdk.s3 :as s3]
+    [clojure.data.codec.base64 :as b64]
     [clojure.data.json :as json]
     [clojure.java.shell :refer [sh]]
     [clojure.string :refer [join trim-newline]]
     [cu.web :refer [app]]
     [environ.core :refer [env]]
     [expectations :refer :all]
-    [ring.mock.request :refer [request body]]
+    [ring.mock.request :refer [request body header]]
     ))
 
 (def git-repo-path "/tmp/cu-web-test")
@@ -45,15 +46,25 @@
     (git "add" script-filename)
     (git "commit" "-m" "first commit")))
 
+(defn encode64 [string]
+  (String. (b64/encode (byte-array (map byte string)))))
+
+(defn auth-headers [request & creds]
+  (header request "Authorization"
+          (str "Basic " (encode64 (join ":" creds)))))
+
 ; gives 201 response
 (expect {:status 201}
         (in
-          (app (body (request :post "/push")
-                     {:payload
-                      (json/write-str
-                        {:repository
-                         {:name "foo"
-                          :url (create-git-repo git-repo-path "run-pipeline" "foo")}})}))))
+          (app (-> (request :post "/push")
+                   (body {:payload
+                          (json/write-str
+                            {:repository
+                             {:name "foo"
+                              :url (create-git-repo git-repo-path
+                                                    "run-pipeline"
+                                                    "foo")}})})
+                   (auth-headers (env :cu-username) (env :cu-password))))))
 
 ; writes output of requested command to a log file
 (expect-let [evidence-that-command-ran (str (UUID/randomUUID))
@@ -70,6 +81,8 @@
             (do
               (create-git-repo git-repo-path script-filename script)
               (s3/delete-object aws-creds bucket log-key)
-              (app (body (request :post "/push") {:payload json-payload}))
+              (app (-> (request :post "/push")
+                       (body {:payload json-payload})
+                       (auth-headers (env :cu-username) (env :cu-password))))
               (slurp (:content (s3/get-object aws-creds bucket log-key)))))
 

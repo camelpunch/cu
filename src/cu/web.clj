@@ -4,17 +4,22 @@
     [clojure.data.json :as json]
     [clojure.java.shell :refer [sh]]
     [compojure.core :refer :all]
-    [compojure.handler :refer [site]]
+    [compojure.handler :as handler]
     [compojure.route :refer [not-found]]
+    [cu.git :as git]
     [environ.core :refer [env]]
     [ring.adapter.jetty :refer [run-jetty]]
-    [cu.git :as git]
+    [ring.middleware.basic-authentication :refer :all]
     ))
 
 (def aws-creds {:access-key (env :aws-access-key)
                 :secret-key (env :aws-secret-key)})
 (def bucket (env :log-bucket))
 (def log-key (env :log-key))
+
+(defn authenticated? [username password]
+  (and (= username (env :cu-username))
+       (= password (env :cu-password))))
 
 (defroutes app-routes
   (POST "/push" [_ & {raw-payload :payload}]
@@ -30,7 +35,8 @@
 
   (not-found "Not Found"))
 
-(def app (site app-routes))
+(def app (-> (handler/api app-routes)
+             (wrap-basic-authentication authenticated?)))
 
 (defn -main []
   (let [port (Integer/parseInt (System/getenv "PORT"))]
