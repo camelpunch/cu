@@ -1,14 +1,21 @@
 (ns cu.web-test
   (:import java.util.UUID)
-  (:require [expectations :refer :all]
-            [ring.mock.request :refer [request body]]
-            [environ.core :refer [env]]
-            [cu.web :refer [app]]
-            [clojure.string :refer [join trim-newline]]
-            [clojure.data.json :as json]
-            [clojure.java.shell :refer [sh]]))
+  (:require
+    [aws.sdk.s3 :as s3]
+    [clojure.data.json :as json]
+    [clojure.java.shell :refer [sh]]
+    [clojure.string :refer [join trim-newline]]
+    [cu.web :refer [app]]
+    [environ.core :refer [env]]
+    [expectations :refer :all]
+    [ring.mock.request :refer [request body]]
+    ))
 
 (def git-repo-path "/tmp/cu-web-test")
+(def aws-creds {:access-key (env :aws-access-key)
+                :secret-key (env :aws-secret-key)})
+(def bucket (env :log-bucket))
+(def log-key (env :log-key))
 
 (defn chmod+x [file] (sh "chmod" "+x" file))
 (defn git-dir [dir] (str dir "/.git"))
@@ -57,14 +64,12 @@
 
              json-payload (json/write-str
                             {:repository {:name "test-project"
-                                          :url git-repo-path}})
+                                          :url git-repo-path}})]
 
-             log-path (str (env :workspaces-path) "/test-project/log")]
-
-            evidence-that-command-ran
+            (re-pattern evidence-that-command-ran)
             (do
               (create-git-repo git-repo-path script-filename script)
-              (sh "rm" log-path)
+              (s3/delete-object aws-creds bucket log-key)
               (app (body (request :post "/push") {:payload json-payload}))
-              (-> log-path slurp trim-newline)))
+              (slurp (:content (s3/get-object aws-creds bucket log-key)))))
 
