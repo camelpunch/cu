@@ -43,9 +43,10 @@
         (in
           (app (body (request :post "/push")
                      {:payload
-                      (json/write-str {:repository
-                                       {:name "foo"
-                                        :url (create-git-repo git-repo-path "run-pipeline" "foo")}})}))))
+                      (json/write-str
+                        {:repository
+                         {:name "foo"
+                          :url (create-git-repo git-repo-path "run-pipeline" "foo")}})}))))
 
 ; writes output of requested command to a log file
 (expect-let [evidence-that-command-ran (str (UUID/randomUUID))
