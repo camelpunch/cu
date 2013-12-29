@@ -27,7 +27,6 @@
                                                 (->> dir git-dir (option "git-dir"))
                                                 (->> dir (option "work-tree"))]
                                                cmds))))
-
 (defn git-init [dir] (git dir "init" dir))
 (defn write-executable [base-path filename contents]
   (let [full-path (str base-path "/" filename)]
@@ -67,6 +66,12 @@
                               :url (create-git-repo git-repo-path
                                                     "run-pipeline"
                                                     "foo")}})})))))
+
+; 401s with incorrect auth
+(expect {:status 401}
+        (in
+          (app (-> (request :post "/push")
+                   (auth-headers request "bad" "credentials")))))
 
 ; can view output of command through web interface
 (expect-let [evidence-that-command-ran (str (UUID/randomUUID))
