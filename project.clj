@@ -1,4 +1,7 @@
 (defproject cu "0.1.0-SNAPSHOT"
+  :aot [cu.core]
+  :main cu.core
+
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"

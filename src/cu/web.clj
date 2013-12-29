@@ -7,20 +7,19 @@
     [compojure.core :refer :all]
     [compojure.handler :as handler]
     [compojure.route :refer [not-found]]
-    [cu.worker :as worker]
     [environ.core :refer [env]]
     [ring.adapter.jetty :refer [run-jetty]]
     [ring.middleware.basic-authentication :refer :all]
     ))
 
-(def sqs-client (sqs/create-client (env :aws-access-key)
-                                   (env :aws-secret-key)))
+(defn- sqs-client [] (sqs/create-client (env :aws-access-key)
+                                       (env :aws-secret-key)))
+(defn- sqs-queue [client] (sqs/create-queue client (env :cu-queue-name)))
+
 (def aws-creds {:access-key (env :aws-access-key)
                 :secret-key (env :aws-secret-key)})
 (def bucket (env :log-bucket))
 (def log-key (env :log-key))
-
-(def q (sqs/create-queue sqs-client (env :cu-queue-name)))
 
 (defn authenticated? [username password]
   (and (= username (env :cu-username))
@@ -28,8 +27,10 @@
 
 (defroutes app-routes
   (POST "/push" [_ & {raw-payload :payload}]
-        (sqs/send sqs-client q (pr-str (json/read-str raw-payload)))
-        {:status 202})
+        (let [client (sqs-client)
+              q (sqs-queue client)]
+          (sqs/send client q (pr-str (json/read-str raw-payload)))
+          {:status 202}))
   (GET "/logs" []
        {:status 200
         :body (slurp (:content (s3/get-object aws-creds bucket log-key)))})

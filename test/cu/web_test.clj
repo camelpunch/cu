@@ -7,7 +7,7 @@
     [clojure.java.shell :refer [sh]]
     [clojure.string :refer [join trim-newline]]
     [cu.web :refer [app]]
-    [cu.worker :as worker]
+    [cu.core :as worker]
     [environ.core :refer [env]]
     [expectations :refer :all]
     [ring.mock.request :refer [request body header]]
