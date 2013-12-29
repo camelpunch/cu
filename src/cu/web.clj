@@ -7,7 +7,6 @@
     [compojure.core :refer :all]
     [compojure.handler :as handler]
     [compojure.route :refer [not-found]]
-    [cu.git :as git]
     [cu.worker :as worker]
     [environ.core :refer [env]]
     [ring.adapter.jetty :refer [run-jetty]]
@@ -30,8 +29,7 @@
 (defroutes app-routes
   (POST "/push" [_ & {raw-payload :payload}]
         (sqs/send sqs-client q (pr-str (json/read-str raw-payload)))
-        (worker/run (env :cu-queue-name))
-        {:status 201})
+        {:status 202})
   (GET "/logs" []
        {:status 200
         :body (slurp (:content (s3/get-object aws-creds bucket log-key)))})

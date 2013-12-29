@@ -7,6 +7,7 @@
     [clojure.java.shell :refer [sh]]
     [clojure.string :refer [join trim-newline]]
     [cu.web :refer [app]]
+    [cu.worker :as worker]
     [environ.core :refer [env]]
     [expectations :refer :all]
     [ring.mock.request :refer [request body header]]
@@ -54,8 +55,8 @@
 (defn correct-auth-headers [request]
   (auth-headers request (env :cu-username) (env :cu-password)))
 
-; gives 201 response
-(expect {:status 201}
+; gives 202 response
+(expect {:status 202}
         (in
           (app (-> (request :post "/push")
                    (correct-auth-headers)
@@ -90,6 +91,7 @@
               (app (-> (request :post "/push")
                        (correct-auth-headers)
                        (body {:payload json-payload})))
+              (worker/run (env :cu-queue-name))
               (:body (app (-> (request :get "/logs")
                               (correct-auth-headers))))))
 
