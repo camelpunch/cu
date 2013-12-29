@@ -32,6 +32,9 @@
           (s3/put-object aws-creds bucket log-key
                          (:out (sh (str workspace-dir "/run-pipeline"))))
           {:status 201}))
+  (GET "/logs" []
+       {:status 200
+        :body (slurp (:content (s3/get-object aws-creds bucket log-key)))})
 
   (not-found "Not Found"))
 

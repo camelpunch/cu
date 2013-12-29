@@ -52,21 +52,23 @@
 (defn auth-headers [request & creds]
   (header request "Authorization"
           (str "Basic " (encode64 (join ":" creds)))))
+(defn correct-auth-headers [request]
+  (auth-headers request (env :cu-username) (env :cu-password)))
 
 ; gives 201 response
 (expect {:status 201}
         (in
           (app (-> (request :post "/push")
+                   (correct-auth-headers)
                    (body {:payload
                           (json/write-str
                             {:repository
                              {:name "foo"
                               :url (create-git-repo git-repo-path
                                                     "run-pipeline"
-                                                    "foo")}})})
-                   (auth-headers (env :cu-username) (env :cu-password))))))
+                                                    "foo")}})})))))
 
-; writes output of requested command to a log file
+; can view output of command through web interface
 (expect-let [evidence-that-command-ran (str (UUID/randomUUID))
 
              script (str "echo " evidence-that-command-ran)
@@ -80,9 +82,9 @@
             (re-pattern evidence-that-command-ran)
             (do
               (create-git-repo git-repo-path script-filename script)
-              (s3/delete-object aws-creds bucket log-key)
               (app (-> (request :post "/push")
-                       (body {:payload json-payload})
-                       (auth-headers (env :cu-username) (env :cu-password))))
-              (slurp (:content (s3/get-object aws-creds bucket log-key)))))
+                       (correct-auth-headers)
+                       (body {:payload json-payload})))
+              (:body (app (-> (request :get "/logs")
+                              (correct-auth-headers))))))
 
