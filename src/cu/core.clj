@@ -36,11 +36,16 @@
           (str
             "Processed payload for URL " url " with output " output))))))
 
+(defn- env-or-max [k]
+  (if-let [env-value (env k)]
+    (Long/parseLong env-value)
+    Long/MAX_VALUE))
+
 (defn -main [& [queue-name]]
   (let [client (sqs-client)
         q (sqs-queue client queue-name)]
     (dorun (map (sqs/deleting-consumer client (comp println process-message))
                 (sqs/polling-receive client q
-                                     :max-wait (or (env :cu-max-wait) Long/MAX_VALUE)
-                                     :period (or (env :cu-period) 500)
+                                     :max-wait (env-or-max :cu-max-wait)
+                                     :period (env-or-max :cu-period)
                                      :limit 10)))))

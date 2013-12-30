@@ -33,8 +33,8 @@
 
                    ; SQS settings tweaked for automated tests - override in
                    ; ~/.lein/profiles.clj
-                   :cu-period 1
-                   :cu-max-wait 1
+                   :cu-period "1"
+                   :cu-max-wait "1"
 
                    ; key only - other S3 config for test should go in
                    ; ~/.lein/profiles.clj
