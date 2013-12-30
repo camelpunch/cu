@@ -2,8 +2,9 @@
   (:require
     [aws.sdk.s3 :as s3]
     [cemerick.bandalore :as sqs]
-    [clojure.string :refer [split join]]
     [clojure.java.shell :refer [sh]]
+    [clojure.string :refer [split join]]
+    [cu.config :refer [config]]
     [cu.git :as git]
     [environ.core :refer [env]]
     )
@@ -11,11 +12,11 @@
 
 (def aws-creds {:access-key (env :aws-access-key)
                 :secret-key (env :aws-secret-key)})
-(def bucket (env :log-bucket))
+(def bucket (config :bucket))
 (def log-key (env :log-key))
 
 (defn- sqs-client [] (sqs/create-client (env :aws-access-key)
-                                       (env :aws-secret-key)))
+                                        (env :aws-secret-key)))
 (defn- sqs-queue [client queue-name] (sqs/create-queue client queue-name))
 
 (defn- clone-target-url [payload]
