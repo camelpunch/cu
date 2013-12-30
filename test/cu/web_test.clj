@@ -6,8 +6,8 @@
     [clojure.data.json :as json]
     [clojure.java.shell :refer [sh]]
     [clojure.string :refer [join trim-newline]]
-    [cu.web :refer [app]]
-    [cu.core :as worker]
+    [cu.web :as web]
+    [cu.core :as core]
     [environ.core :refer [env]]
     [expectations :refer :all]
     [ring.mock.request :refer [request body header]]
@@ -58,29 +58,28 @@
 ; gives 202 response
 (expect {:status 202}
         (in
-          (app (-> (request :post "/push")
-                   (correct-auth-headers)
-                   (body {:payload
-                          (json/write-str
-                            {:repository
-                             {:name "foo"
-                              :url (create-git-repo git-repo-path
-                                                    "run-pipeline"
-                                                    "foo")}})})))))
+          (let [payload (json/write-str
+                          {:repository {:name "foo"
+                                        :url (create-git-repo git-repo-path
+                                                              "run-pipeline"
+                                                              "foo")}})
+                response (web/app (-> (request :post "/push")
+                                      (correct-auth-headers)
+                                      (body {:payload payload})))]
+            ; consume queued item to avoid pollution
+            (core/-main (env :cu-queue-name))
+            response)))
 
 ; 401s with incorrect auth
 (expect {:status 401}
         (in
-          (app (-> (request :post "/push")
-                   (auth-headers request "bad" "credentials")))))
+          (web/app (-> (request :post "/push")
+                       (auth-headers request "bad" "credentials")))))
 
 ; can view output of command through web interface
 (expect-let [evidence-that-command-ran (str (UUID/randomUUID))
-
              script (str "echo " evidence-that-command-ran)
-
              script-filename "run-pipeline"
-
              json-payload (json/write-str
                             {:repository {:name "test-project"
                                           :url git-repo-path}})]
@@ -88,10 +87,10 @@
             (re-pattern evidence-that-command-ran)
             (do
               (create-git-repo git-repo-path script-filename script)
-              (app (-> (request :post "/push")
-                       (correct-auth-headers)
-                       (body {:payload json-payload})))
-              (worker/run (env :cu-queue-name))
-              (:body (app (-> (request :get "/logs")
-                              (correct-auth-headers))))))
+              (web/app (-> (request :post "/push")
+                           (correct-auth-headers)
+                           (body {:payload json-payload})))
+              (core/-main (env :cu-queue-name))
+              (:body (web/app (-> (request :get "/logs")
+                                  (correct-auth-headers))))))
 

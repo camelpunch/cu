@@ -25,15 +25,9 @@
   (join "/" [workspaces-dir
              (last (split url #"/"))
              "workspace"]))
-(comment
-  (workspace-dir "spaces" "http://github.bob/foobar/projectx"))
 
-(defn run [queue-name]
-  (let [client (sqs-client)
-        q (sqs-queue client queue-name)
-        raw-payload (-> (sqs/receive client q)
-                        first
-                        :body)]
+(defn process-message [message]
+  (let [raw-payload (:body message)]
     (when-let [url (clone-target-url raw-payload)]
       (let [ws-dir (workspace-dir (env :workspaces-path) url)]
         (git/fresh-clone url ws-dir)
@@ -43,7 +37,10 @@
             "Processed payload for URL " url " with output " output))))))
 
 (defn -main [& [queue-name]]
-  (loop []
-    (println (run queue-name))
-    (Thread/sleep 2000)
-    (recur)))
+  (let [client (sqs-client)
+        q (sqs-queue client queue-name)]
+    (dorun (map (sqs/deleting-consumer client (comp println process-message))
+                (sqs/polling-receive client q
+                                     :max-wait (or (env :cu-max-wait) Long/MAX_VALUE)
+                                     :period (or (env :cu-period) 500)
+                                     :limit 10)))))
