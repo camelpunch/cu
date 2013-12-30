@@ -2,6 +2,7 @@
   (:require
     [aws.sdk.s3 :as s3]
     [cemerick.bandalore :as sqs]
+    [clojure.string :refer [split join]]
     [clojure.java.shell :refer [sh]]
     [cu.git :as git]
     [environ.core :refer [env]]
@@ -17,25 +18,29 @@
                                        (env :aws-secret-key)))
 (defn- sqs-queue [client queue-name] (sqs/create-queue client queue-name))
 
-(defn run
-  [queue-name]
-  (let [workspaces-dir (env :workspaces-path)
-        basedir (str workspaces-dir "/test-project")
-        workspace-dir (str basedir "/workspace")
-        client (sqs-client)
+(defn- clone-target-url [payload]
+  (if payload (get-in (read-string payload) ["repository" "url"])))
+
+(defn- workspace-dir [workspaces-dir url]
+  (join "/" [workspaces-dir
+             (last (split url #"/"))
+             "workspace"]))
+(comment
+  (workspace-dir "spaces" "http://github.bob/foobar/projectx"))
+
+(defn run [queue-name]
+  (let [client (sqs-client)
         q (sqs-queue client queue-name)
-        raw-payload (->> (sqs/receive client q)
-                         first
-                         :body)
-        payload (if raw-payload
-                  (read-string raw-payload)
-                  {})]
-    (when-let [url (get-in payload ["repository" "url"])]
-      (.mkdirs (java.io.File. basedir))
-      (git/fresh-clone url workspace-dir)
-      (s3/put-object aws-creds bucket log-key
-                     (:out (sh (str workspace-dir "/run-pipeline"))))
-      "Processed payload for URL" url)))
+        raw-payload (-> (sqs/receive client q)
+                        first
+                        :body)]
+    (when-let [url (clone-target-url raw-payload)]
+      (let [ws-dir (workspace-dir (env :workspaces-path) url)]
+        (git/fresh-clone url ws-dir)
+        (let [output (:out (sh (str ws-dir "/run-pipeline")))]
+          (s3/put-object aws-creds bucket log-key output)
+          (str
+            "Processed payload for URL " url " with output " output))))))
 
 (defn -main [& [queue-name]]
   (loop []
