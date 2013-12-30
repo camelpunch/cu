@@ -8,6 +8,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [
                  [clj-aws-s3 "0.3.7"]
+                 [clj-yaml "0.4.0"]
                  [com.cemerick/bandalore "0.0.5"]
                  [compojure "1.1.6"]
                  [environ "0.4.0"]
@@ -29,13 +30,13 @@
                              [expectations "1.4.52"]
                              [ring-mock "0.1.5"]
                              ]
-             :env {:workspaces-path "tmp/cu-workspaces"
+              :env {:workspaces-path "tmp/cu-workspaces"
 
-                   ; SQS settings tweaked for automated tests - override in
-                   ; ~/.lein/profiles.clj
-                   :cu-period "1"
-                   :cu-max-wait "1"
+                    ; SQS settings tweaked for automated tests - override in
+                    ; ~/.lein/profiles.clj
+                    :cu-period "1"
+                    :cu-max-wait "1"
 
-                   ; key only - other S3 config for test should go in
-                   ; ~/.lein/profiles.clj
-                   :log-key "logs"}}})
+                    ; key only - other S3 config for test should go in
+                    ; ~/.lein/profiles.clj
+                    :log-key "logs"}}})

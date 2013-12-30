@@ -2,6 +2,7 @@
   (:require
     [aws.sdk.s3 :as s3]
     [cemerick.bandalore :as sqs]
+    [clj-yaml.core :as yaml]
     [clojure.data.json :as json]
     [clojure.java.shell :refer [sh]]
     [compojure.core :refer :all]
@@ -13,8 +14,11 @@
     ))
 
 (defn- sqs-client [] (sqs/create-client (env :aws-access-key)
-                                       (env :aws-secret-key)))
-(defn- sqs-queue [client] (sqs/create-queue client (env :cu-queue-name)))
+                                        (env :aws-secret-key)))
+(def config (-> (str (env :home) "/cu_worker.yml")
+                slurp
+                yaml/parse-string))
+(defn- sqs-queue [client] (sqs/create-queue client (config :queue)))
 
 (def aws-creds {:access-key (env :aws-access-key)
                 :secret-key (env :aws-secret-key)})

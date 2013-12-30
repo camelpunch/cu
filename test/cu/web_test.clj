@@ -1,23 +1,22 @@
 (ns cu.web-test
   (:import java.util.UUID)
   (:require
-    [aws.sdk.s3 :as s3]
+    [clj-yaml.core :as yaml]
     [clojure.data.codec.base64 :as b64]
     [clojure.data.json :as json]
     [clojure.java.shell :refer [sh]]
     [clojure.string :refer [join trim-newline]]
-    [cu.web :as web]
     [cu.core :as core]
+    [cu.web :as web]
     [environ.core :refer [env]]
     [expectations :refer :all]
     [ring.mock.request :refer [request body header]]
     ))
 
 (def git-repo-path "/tmp/cu-web-test")
-(def aws-creds {:access-key (env :aws-access-key)
-                :secret-key (env :aws-secret-key)})
-(def bucket (env :log-bucket))
-(def log-key (env :log-key))
+(def config (-> (str (env :home) "/cu_worker.yml")
+                slurp
+                yaml/parse-string))
 
 (defn chmod+x [file] (sh "chmod" "+x" file))
 (defn git-dir [dir] (str dir "/.git"))
@@ -52,7 +51,7 @@
 (defn auth-headers [request & creds]
   (header request "Authorization"
           (str "Basic " (encode64 (join ":" creds)))))
-(defn correct-auth-headers [request]
+(defn login [request]
   (auth-headers request (env :cu-username) (env :cu-password)))
 
 ; gives 202 response
@@ -64,10 +63,10 @@
                                                               "run-pipeline"
                                                               "foo")}})
                 response (web/app (-> (request :post "/push")
-                                      (correct-auth-headers)
+                                      login
                                       (body {:payload payload})))]
             ; consume queued item to avoid pollution
-            (core/-main (env :cu-queue-name))
+            (core/-main (config :queue))
             response)))
 
 ; 401s with incorrect auth
@@ -88,9 +87,9 @@
             (do
               (create-git-repo git-repo-path script-filename script)
               (web/app (-> (request :post "/push")
-                           (correct-auth-headers)
+                           (login)
                            (body {:payload json-payload})))
-              (core/-main (env :cu-queue-name))
+              (core/-main (config :queue))
               (:body (web/app (-> (request :get "/logs")
-                                  (correct-auth-headers))))))
+                                  (login))))))
 
