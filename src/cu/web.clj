@@ -21,7 +21,7 @@
 (def bucket (env :log-bucket))
 (def log-key (env :log-key))
 
-(defn authenticated? [username password]
+(defn- authenticated? [username password]
   (and (= username (env :cu-username))
        (= password (env :cu-password))))
 
