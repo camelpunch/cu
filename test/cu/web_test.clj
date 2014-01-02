@@ -14,9 +14,6 @@
     ))
 
 (def git-repo-path "/tmp/cu-web-test")
-(def config (-> (str (env :home) "/cu_worker.yml")
-                slurp
-                yaml/parse-string))
 
 (defn chmod+x [file] (sh "chmod" "+x" file))
 (defn git-dir [dir] (str dir "/.git"))

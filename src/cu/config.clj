@@ -10,7 +10,7 @@
     Long/MAX_VALUE))
 
 (defn- retrieve-config [environment]
-  (-> (str (environment :home) "/cu_worker.yml")
+  (-> (str (environment :home) "/cu.yml")
       slurp
       yaml/parse-string
       (assoc :aws-credentials {:access-key (environment :aws-access-key)

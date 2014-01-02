@@ -1,0 +1,5 @@
+---
+bucket: cu-test
+log-key: logs
+queue: cu-test
+workspaces-path: tmp/cu-workspaces
