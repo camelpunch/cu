@@ -31,9 +31,9 @@
           (str
             "Processed payload for URL " url " with output " output))))))
 
-(defn -main [& [queue-name]]
+(defn -main []
   (let [client (sqs-client)
-        q (sqs-queue client queue-name)]
+        q (sqs-queue client (config :queue))]
     (dorun (map (sqs/deleting-consumer client (comp println process-message))
                 (sqs/polling-receive client q
                                      :max-wait (config :cu-max-wait)

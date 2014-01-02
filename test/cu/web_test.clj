@@ -66,7 +66,7 @@
                                       login
                                       (body {:payload payload})))]
             ; consume queued item to avoid pollution
-            (core/-main (config :queue))
+            (core/-main)
             response)))
 
 ; 401s with incorrect auth
@@ -89,7 +89,7 @@
               (web/app (-> (request :post "/push")
                            (login)
                            (body {:payload json-payload})))
-              (core/-main (config :queue))
+              (core/-main)
               (:body (web/app (-> (request :get "/logs")
                                   (login))))))
 
