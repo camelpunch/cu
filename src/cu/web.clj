@@ -3,38 +3,36 @@
     [aws.sdk.s3 :as s3]
     [cemerick.bandalore :as sqs]
     [clojure.data.json :as json]
-    [clojure.java.shell :refer [sh]]
     [compojure.core :refer :all]
     [compojure.handler :as handler]
     [compojure.route :refer [not-found]]
     [cu.config :refer [config]]
-    [environ.core :refer [env]]
     [ring.adapter.jetty :refer [run-jetty]]
     [ring.middleware.basic-authentication :refer :all]
     ))
 
-(defn- sqs-client [] (sqs/create-client (env :aws-access-key)
-                                        (env :aws-secret-key)))
+(defn- sqs-client [] (apply sqs/create-client
+                            (vals (config :aws-credentials))))
 (defn- sqs-queue [client] (sqs/create-queue client (config :queue)))
 
-(def aws-creds {:access-key (env :aws-access-key)
-                :secret-key (env :aws-secret-key)})
-(def bucket (config :bucket))
-(def log-key (env :log-key))
-
 (defn- authenticated? [username password]
-  (and (= username (env :cu-username))
-       (= password (env :cu-password))))
+  (and (= username (config :cu-username))
+       (= password (config :cu-password))))
 
 (defroutes app-routes
   (POST "/push" [_ & {raw-payload :payload}]
-        (let [client (sqs-client)
-              q (sqs-queue client)]
-          (sqs/send client q (pr-str (json/read-str raw-payload)))
+        (let [client (sqs-client)]
+          (sqs/send client
+                    (sqs-queue client)
+                    (pr-str (json/read-str raw-payload)))
           {:status 202}))
+
   (GET "/logs" []
        {:status 200
-        :body (slurp (:content (s3/get-object aws-creds bucket log-key)))})
+        :body (-> (apply s3/get-object
+                         (mapv config [:aws-credentials :bucket :log-key]))
+                  :content
+                  slurp)})
 
   (not-found "Not Found"))
 
