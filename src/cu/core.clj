@@ -6,6 +6,7 @@
     [clojure.string :refer [split join]]
     [cu.config :refer [config]]
     [cu.git :as git]
+    [cu.payload :as payload]
     )
   (:gen-class))
 
@@ -13,12 +14,9 @@
                             (vals (config :aws-credentials))))
 (defn- sqs-queue [client queue-name] (sqs/create-queue client queue-name))
 
-(defn- clone-target-url [payload]
-  (if payload (get-in (read-string payload) ["repository" "url"])))
-
 (defn process-message [message]
   (let [raw-payload (:body message)]
-    (when-let [url (clone-target-url raw-payload)]
+    (when-let [url (payload/clone-target-url raw-payload)]
       (let [workspace-dir (join "/" [(config :workspaces-path)
                                      (last (split url #"/"))
                                      "workspace"])]
