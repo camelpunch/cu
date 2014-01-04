@@ -8,6 +8,7 @@
     [clojure.string :refer [join trim-newline]]
     [cu.core :as core]
     [cu.web :as web]
+    [cu.git-test-helpers :refer [git]]
     [environ.core :refer [env]]
     [expectations :refer :all]
     [ring.mock.request :refer [request body header]]
@@ -18,37 +19,26 @@
 (defn chmod+x [file] (sh "chmod" "+x" file))
 (defn mkdir-p [path] (sh "mkdir" "-p" path))
 
-(defn git-dir [dir] (str dir "/.git"))
-(defn option [k v] (join "=" [(str "--" k) v]))
-(defn git [dir & cmds] (:out (apply sh (concat ["git"
-                                                (->> dir git-dir (option "git-dir"))
-                                                (->> dir (option "work-tree"))]
-                                               cmds))))
-(defn git-init [dir] (git dir "init" dir))
-(defn write-executable [base-path filename contents]
+(defn write-script [base-path filename contents]
   (let [full-path (str base-path "/cu/" filename)]
     (spit full-path contents)
     (chmod+x full-path)))
-(defn rm-git-dir [parent-dir]
-  (sh "rm" "-r" (git-dir parent-dir)))
-(defn prepare-script-dir [parent-dir]
-  (doto (str parent-dir "/cu")
-    #(sh "rm" "-rf" %)
-    mkdir-p))
 
-(defn create-git-repo
-  [path script-filename script]
+(defn write-scripts [basepath script-filenames]
+  (doseq [[filename script] script-filenames]
+    (write-script basepath filename script)))
+
+(defn create-git-repo [path & script-filenames]
+  (sh "rm" "-rf" path)
+  (mkdir-p (str path "/cu"))
   (doto path
-    rm-git-dir
-    prepare-script-dir
-    (write-executable script-filename script)
-    git-init
+    (write-scripts (partition-all 2 script-filenames))
+    (git "init" path)
     (git "add" "-A")
     (git "commit" "-m" "first commit")))
 
 (defn encode64 [string]
   (String. (b64/encode (byte-array (map byte string)))))
-
 (defn auth-headers [request & creds]
   (header request "Authorization"
           (str "Basic " (encode64 (join ":" creds)))))
@@ -58,17 +48,17 @@
 ; gives 202 response
 (expect {:status 202}
         (in
-          (let [payload (json/write-str
-                          {:repository {:name "foo"
-                                        :url (create-git-repo git-repo-path
-                                                              "00-test1"
-                                                              "foo")}})
-                response (web/app (-> (request :post "/push")
-                                      login
-                                      (body {:payload payload})))]
-            ; consume queued item to avoid pollution
-            (core/-main)
-            response)))
+          (do
+            (create-git-repo git-repo-path
+                             "00-test1" "foo")
+            (let [payload (json/write-str {:repository {:name "foo"
+                                                        :url git-repo-path}})
+                  response (web/app (-> (request :post "/push")
+                                        login
+                                        (body {:payload payload})))]
+              ; consume queued item to avoid pollution
+              (core/-main)
+              response))))
 
 ; 401s with incorrect auth
 (expect {:status 401}
@@ -76,17 +66,19 @@
           (web/app (-> (request :post "/push")
                        (auth-headers request "bad" "credentials")))))
 
-; can view output of command through web interface
-(expect-let [script-filename "00-run-pipeline"
-             evidence-that-command-ran (str (UUID/randomUUID))
-             script (str "echo " evidence-that-command-ran)
+; can view output of pipeline through web interface
+(expect-let [evidence-that-command-ran (str (UUID/randomUUID))
              json-payload (json/write-str
                             {:repository {:name "test-project"
                                           :url git-repo-path}})]
 
-            (re-pattern evidence-that-command-ran)
+            (str "running first command"    "\n"
+                 evidence-that-command-ran  "\n")
             (do
-              (create-git-repo git-repo-path script-filename script)
+              (create-git-repo
+                git-repo-path
+                "00-start"  "echo 'running first command'; exit 0"
+                "01-finish" (str "echo " evidence-that-command-ran))
               (web/app (-> (request :post "/push")
                            (login)
                            (body {:payload json-payload})))

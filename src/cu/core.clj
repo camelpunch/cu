@@ -14,32 +14,36 @@
                             (vals (config :aws-credentials))))
 (defn- sqs-queue [client queue-name] (sqs/create-queue client queue-name))
 
-(defn- nth-script-filename [basedir n]
-  (let [cu-dir (str basedir "/cu/")
-        scripts (map #(.getCanonicalPath %)
-                     (.listFiles (clojure.java.io/file cu-dir)))]
-    (first scripts)))
+(defn- workspace-dir [basedir url]
+  (join "/" [basedir (last (split url #"/")) "workspace"]))
+(comment (let [url "http://some.url/pathname"]
+           (workspace-dir (config :workspaces-path) url)))
 
 (defn process-message [message]
-  (let [raw-payload (:body message)]
-    (when-let [url (payload/clone-target-url raw-payload)]
-      (let [workspace-dir (join "/" [(config :workspaces-path)
-                                     (last (split url #"/"))
-                                     "workspace"])]
-        (git/fresh-clone url workspace-dir)
-        (let [output (-> (nth-script-filename workspace-dir 0) sh :out)]
-          (apply s3/put-object (conj (mapv config [:aws-credentials
-                                                   :bucket
-                                                   :log-key])
-                                     output))
-          (str
-            "Processed payload for URL " url " with output " output))))))
+  (when-let [url (payload/clone-target-url (message :body))]
+    (let [repo (git/fresh-clone url
+                                (workspace-dir (config :workspaces-path) url))
+          output (apply str
+                        (map (fn [script] (-> script sh :out))
+                             (repo :scripts)))]
+      (apply s3/put-object (conj (mapv config [:aws-credentials
+                                               :bucket
+                                               :log-key])
+                                 output))
+      (str
+        "Processed payload for URL " url " with output " output))))
 
 (defn -main []
   (let [client (sqs-client)
         q (sqs-queue client (config :queue))]
-    (dorun (map (sqs/deleting-consumer client (comp println process-message))
-                (sqs/polling-receive client q
-                                     :max-wait (config :cu-max-wait)
-                                     :period (config :cu-period)
-                                     :limit 10)))))
+    (dorun
+      (map (sqs/deleting-consumer client
+                                  (fn [message]
+                                    ; (try
+                                    (process-message message)
+                                    ; (catch Exception e (println e)))
+                                    ))
+           (sqs/polling-receive client q
+                                :max-wait (config :cu-max-wait)
+                                :period (config :cu-period)
+                                :limit 10)))))
