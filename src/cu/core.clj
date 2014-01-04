@@ -14,6 +14,12 @@
                             (vals (config :aws-credentials))))
 (defn- sqs-queue [client queue-name] (sqs/create-queue client queue-name))
 
+(defn- nth-script-filename [basedir n]
+  (let [cu-dir (str basedir "/cu/")
+        scripts (map #(.getCanonicalPath %)
+                     (.listFiles (clojure.java.io/file cu-dir)))]
+    (first scripts)))
+
 (defn process-message [message]
   (let [raw-payload (:body message)]
     (when-let [url (payload/clone-target-url raw-payload)]
@@ -21,7 +27,7 @@
                                      (last (split url #"/"))
                                      "workspace"])]
         (git/fresh-clone url workspace-dir)
-        (let [output (-> (str workspace-dir "/run-pipeline") sh :out)]
+        (let [output (-> (nth-script-filename workspace-dir 0) sh :out)]
           (apply s3/put-object (conj (mapv config [:aws-credentials
                                                    :bucket
                                                    :log-key])

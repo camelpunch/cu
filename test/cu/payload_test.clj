@@ -4,7 +4,7 @@
     [expectations :refer :all]
     ))
 
-; grabs URL from payloads
+; grabs URL from a payload
 (expect "http://foo.bar"
         (payload/clone-target-url (str {"repository" {"url" "http://foo.bar"}})))
 ;

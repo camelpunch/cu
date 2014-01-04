@@ -16,9 +16,9 @@
 (def git-repo-path "/tmp/cu-web-test")
 
 (defn chmod+x [file] (sh "chmod" "+x" file))
+(defn mkdir-p [path] (sh "mkdir" "-p" path))
+
 (defn git-dir [dir] (str dir "/.git"))
-(defn rm-git-dir [parent-dir]
-  (sh "rm" "-r" (git-dir parent-dir)))
 (defn option [k v] (join "=" [(str "--" k) v]))
 (defn git [dir & cmds] (:out (apply sh (concat ["git"
                                                 (->> dir git-dir (option "git-dir"))
@@ -26,20 +26,24 @@
                                                cmds))))
 (defn git-init [dir] (git dir "init" dir))
 (defn write-executable [base-path filename contents]
-  (let [full-path (str base-path "/" filename)]
+  (let [full-path (str base-path "/cu/" filename)]
     (spit full-path contents)
     (chmod+x full-path)))
-
-(defn mkdir-p [path] (sh "mkdir" "-p" path))
+(defn rm-git-dir [parent-dir]
+  (sh "rm" "-r" (git-dir parent-dir)))
+(defn prepare-script-dir [parent-dir]
+  (doto (str parent-dir "/cu")
+    #(sh "rm" "-rf" %)
+    mkdir-p))
 
 (defn create-git-repo
   [path script-filename script]
   (doto path
-    mkdir-p
     rm-git-dir
+    prepare-script-dir
     (write-executable script-filename script)
     git-init
-    (git "add" script-filename)
+    (git "add" "-A")
     (git "commit" "-m" "first commit")))
 
 (defn encode64 [string]
@@ -57,7 +61,7 @@
           (let [payload (json/write-str
                           {:repository {:name "foo"
                                         :url (create-git-repo git-repo-path
-                                                              "run-pipeline"
+                                                              "00-test1"
                                                               "foo")}})
                 response (web/app (-> (request :post "/push")
                                       login
@@ -73,9 +77,9 @@
                        (auth-headers request "bad" "credentials")))))
 
 ; can view output of command through web interface
-(expect-let [evidence-that-command-ran (str (UUID/randomUUID))
+(expect-let [script-filename "00-run-pipeline"
+             evidence-that-command-ran (str (UUID/randomUUID))
              script (str "echo " evidence-that-command-ran)
-             script-filename "run-pipeline"
              json-payload (json/write-str
                             {:repository {:name "test-project"
                                           :url git-repo-path}})]
