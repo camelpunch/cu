@@ -13,7 +13,7 @@
 
 (defn- sqs-client [] (apply sqs/create-client
                             (vals (config :aws-credentials))))
-(defn- sqs-queue [client] (sqs/create-queue client (config :queue)))
+(defn- sqs-queue [client] (sqs/create-queue client "cu-pushes"))
 
 (defn- authenticated? [username password]
   (and (= username (config :cu-username))

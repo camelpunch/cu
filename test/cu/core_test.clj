@@ -4,7 +4,10 @@
     [expectations :refer :all]
     ))
 
-; copes with empty queue
+; copes with empty queues
 (expect nil (do
-              (core/-main)
-              (core/-main)))
+              (core/-main "worker")
+              (core/-main "worker")))
+
+; does nothing if given a bad command
+(expect nil (core/-main "madeup"))

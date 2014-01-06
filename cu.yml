@@ -1,5 +1,38 @@
 ---
 bucket: cu-test
 log-key: logs
-queue: cu-test
 workspaces-path: tmp/cu-workspaces
+pipeline:
+  # these first two projects are the web-hook whitelist - as it happens, it's
+  # just one unique repo
+  test-web-app-units: # defaults to 'cu-immediate-default' queue
+    script: "true"
+    repo: &web-repo https://github.com/camelpunch/cu-example-web-app
+  test-web-app-integrations:
+    script: "true"
+    repo: *web-repo
+  then:
+    deploy-web-app:
+      script: "true"
+      repo: *web-repo
+    announce-web-deployment:
+      script: "true"
+      repo: *web-repo
+    then:
+      test-ios-client-against-web-app:
+        with: mac-mini # use cu-immediate-mac-mini queue (target different arch)
+        script: "exit 0"
+        repo: &ios-repo https://github.com/camelpunch/cu-example-ios-app
+        then:
+          deploy-ios-client:
+            with: mac-mini
+            script: "exit 0"
+            repo: *ios-repo
+      test-android-client-against-web-app:
+        on: android
+        repo: &android-repo https://github.com/camelpunch/cu-example-android-app
+        then:
+          deploy-android-client:
+            on: android
+            repo: *android-repo
+

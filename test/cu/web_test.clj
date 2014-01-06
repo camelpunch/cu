@@ -14,25 +14,12 @@
     [ring.mock.request :refer [request body header]]
     ))
 
-(def git-repo-path "/tmp/cu-web-test")
-
-(defn chmod+x [file] (sh "chmod" "+x" file))
 (defn mkdir-p [path] (sh "mkdir" "-p" path))
-
-(defn write-script [base-path filename contents]
-  (let [full-path (str base-path "/cu/" filename)]
-    (spit full-path contents)
-    (chmod+x full-path)))
-
-(defn write-scripts [basepath script-filenames]
-  (doseq [[filename script] script-filenames]
-    (write-script basepath filename script)))
-
-(defn create-git-repo [path & script-filenames]
+(defn create-git-repo [path config]
   (sh "rm" "-rf" path)
-  (mkdir-p (str path "/cu"))
+  (mkdir-p path)
+  (spit (str path "/cu.yml") (yaml/generate-string config))
   (doto path
-    (write-scripts (partition-all 2 script-filenames))
     (git "init" path)
     (git "add" "-A")
     (git "commit" "-m" "first commit")))
@@ -49,15 +36,21 @@
 (expect {:status 202}
         (in
           (do
-            (create-git-repo git-repo-path
-                             "00-test1" "foo")
+            (create-git-repo
+              "/tmp/cu-test-202"
+              {:bucket "cu-test"
+               :log-key "logs"
+               :workspaces-path "tmp/cu-workspaces"
+               :pipeline {:cu-web-test-202 {:repo "/tmp/cu-test-202"
+                                 :script "true"}}})
             (let [payload (json/write-str {:repository {:name "foo"
-                                                        :url git-repo-path}})
+                                                        :url "/tmp/cu-test-202"}})
                   response (web/app (-> (request :post "/push")
                                         login
                                         (body {:payload payload})))]
               ; consume queued item to avoid pollution
-              (core/-main)
+              (core/-main "parser")
+              (core/-main "worker")
               response))))
 
 ; 401s with incorrect auth
@@ -67,22 +60,30 @@
                        (auth-headers request "bad" "credentials")))))
 
 ; can view output of pipeline through web interface
-(expect-let [evidence-that-command-ran (str (UUID/randomUUID))
-             json-payload (json/write-str
-                            {:repository {:name "test-project"
-                                          :url git-repo-path}})]
+(expect-let
+  [uuid (str (UUID/randomUUID))
+   url "/tmp/cu-test-pipe"
+   json-payload (json/write-str {:repository {:name "test-project"
+                                              :url  url}})]
 
-            (str "running first command"    "\n"
-                 evidence-that-command-ran  "\n")
-            (do
-              (create-git-repo
-                git-repo-path
-                "00-start"  "echo 'running first command'; exit 0"
-                "01-finish" (str "echo " evidence-that-command-ran))
-              (web/app (-> (request :post "/push")
-                           (login)
-                           (body {:payload json-payload})))
-              (core/-main)
-              (:body (web/app (-> (request :get "/logs")
-                                  (login))))))
+  (join "\n"
+        ["first command"
+         uuid])
+  (do
+    (create-git-repo
+      url
+      {:bucket "cu-test"
+       :log-key "logs"
+       :pipeline {:cu-test-start  {:repo   url
+                                   :script "echo 'first command'"}
+                  :then
+                  {:cu-test-end   {:repo   url
+                                   :script (str "echo " uuid)}}}})
+    (web/app (-> (request :post "/push")
+                 login
+                 (body {:payload json-payload})))
+    (core/-main "parser")
+    (core/-main "worker")
+    (:body (web/app (-> (request :get "/logs")
+                        login)))))
 
