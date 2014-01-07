@@ -20,11 +20,11 @@
     :script  "exit 0"
     :repo    "https://some.repo"}]
   (payload/immediate-jobs
-    {:test-web-app-units         {:script  "true"
-                                  :repo    "https://some.repo"}
-     :test-web-app-integrations  {:script  "exit 0"
-                                  :repo    "https://some.repo"}
-     :then {:something-else {}}}))
+    {:test-web-app-units        {:script  "true"
+                                 :repo    "https://some.repo"}
+     :test-web-app-integrations {:script  "exit 0"
+                                 :repo    "https://some.repo"}
+     :downstream {:something-else {}}}))
 
 ; pulls waiting jobs from a partial webhook payload
 (expect
@@ -40,10 +40,13 @@
   (payload/waiting-jobs
     {:some-initial-job         {}
      :another-initial-job      {}
-     :then {:deploy-website-staging  {:script  "true"
-                                      :repo    "https://web.repo"}
-            :deploy-website-qa       {:script  "true"
-                                      :repo    "https://web.repo"}
-            :then {:test-mobile-app-against-staging {:script "rake"
-                                                     :repo   "https://some.mobile.repo"}}}}))
+     :downstream {:deploy-website-staging  {:script  "true"
+                                            :repo    "https://web.repo"}
+                  :deploy-website-qa       {:script  "true"
+                                            :repo    "https://web.repo"}
+                  :downstream {:test-mobile-app-against-staging {:script "rake"
+                                                                 :repo   "https://some.mobile.repo"}}}}))
 
+; empty seqs of jobs for nil args
+(expect [] (payload/immediate-jobs nil))
+(expect [] (payload/waiting-jobs nil))

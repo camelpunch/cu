@@ -11,19 +11,19 @@ pipeline:
   test-web-app-integrations:
     script: "true"
     repo: *web-repo
-  then:
+  downstream:
     deploy-web-app:
       script: "true"
       repo: *web-repo
     announce-web-deployment:
       script: "true"
       repo: *web-repo
-    then:
+    downstream:
       test-ios-client-against-web-app:
         with: mac-mini # use cu-immediate-mac-mini queue (target different arch)
         script: "exit 0"
         repo: &ios-repo https://github.com/camelpunch/cu-example-ios-app
-        then:
+        downstream:
           deploy-ios-client:
             with: mac-mini
             script: "exit 0"
@@ -31,7 +31,7 @@ pipeline:
       test-android-client-against-web-app:
         on: android
         repo: &android-repo https://github.com/camelpunch/cu-example-android-app
-        then:
+        downstream:
           deploy-android-client:
             on: android
             repo: *android-repo

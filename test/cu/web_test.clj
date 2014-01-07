@@ -66,8 +66,8 @@
                                               :url  url}})]
 
   (join "\n"
-        ["cu.yml"
-         "some/dir"])
+        ["cu.yml"     ; because script is 'ls'
+         "some/dir"]) ; because script is 'pwd'
   (do
     (create-git-repo
       url
@@ -75,7 +75,7 @@
        :log-key "logs"
        :pipeline {:cu-test-start  {:repo   url
                                    :script "ls"}
-                  :then
+                  :downstream
                   {:cu-test-end   {:repo   url
                                    :script "pwd"}}}})
     (web/app (-> (request :post "/push")
