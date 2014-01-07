@@ -20,14 +20,19 @@
 (defn process-push-message [client {payload :body}]
   (when-let [url (payload/clone-target-url payload)]
     (let [repo (git/fresh-clone url (workspace-dir (config :workspaces-path) url))]
-      (doseq [job (payload/immediate-jobs (repo :config))]
+      (doseq [job (payload/immediate-jobs (get-in repo :config :pipeline))]
         (sqs/send client
                   (sqs-queue client "cu-immediate")
+                  (pr-str job)))
+      (doseq [job (payload/waiting-jobs (get-in repo :config :pipeline))]
+        (sqs/send client
+                  (sqs-queue client "cu-waiting")
                   (pr-str job))))))
 
+; currently only supports single commands
 (defn- run! [working-directory script]
-  (:out (apply sh (concat (split script #" ")
-                          [:dir working-directory]))))
+  (:out (sh script
+            :dir working-directory)))
 
 (defn process-job-message [{raw-job :body}]
   (let [{job-name :name

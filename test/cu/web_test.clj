@@ -61,24 +61,23 @@
 
 ; can view output of pipeline through web interface
 (expect-let
-  [uuid (str (UUID/randomUUID))
-   url "/tmp/cu-test-pipe"
+  [url "/tmp/cu-test-pipe"
    json-payload (json/write-str {:repository {:name "test-project"
                                               :url  url}})]
 
   (join "\n"
-        ["first command"
-         uuid])
+        ["cu.yml"
+         "some/dir"])
   (do
     (create-git-repo
       url
       {:bucket "cu-test"
        :log-key "logs"
        :pipeline {:cu-test-start  {:repo   url
-                                   :script "echo 'first command'"}
+                                   :script "ls"}
                   :then
                   {:cu-test-end   {:repo   url
-                                   :script (str "echo " uuid)}}}})
+                                   :script "pwd"}}}})
     (web/app (-> (request :post "/push")
                  login
                  (body {:payload json-payload})))
