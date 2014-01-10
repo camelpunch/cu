@@ -29,7 +29,8 @@
 
   (GET "/logs" []
        {:status 200
-        :body (-> (apply s3/get-object
+        :body (-> (apply s3/get-object ; TODO: list objects - get latest push dir,
+                                       ; then concat the logs in that dir
                          (mapv config [:aws-credentials :bucket :log-key]))
                   :content
                   slurp)})

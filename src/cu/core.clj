@@ -2,6 +2,7 @@
   (:require
     [aws.sdk.s3 :as s3]
     [cemerick.bandalore :as sqs]
+    [clj-time.local :refer [local-now]]
     [clojure.java.shell :refer [sh]]
     [clojure.string :refer [split join]]
     [cu.config :refer [config]]
@@ -31,27 +32,35 @@
 
 ; currently only supports single commands
 (defn- run! [working-directory script]
-  (:out (sh script
-            :dir working-directory)))
+  (sh script :dir working-directory))
 
 (defn process-job-message [{raw-job :body}]
-  (let [{job-name :name
+  (let [
+        {job-name :name
          script   :script
          url      :repo} (read-string raw-job)
+
         workspace (join "/" [(config :workspaces-path) job-name "workspace"])
         repo (git/fresh-clone url workspace)
-        output (run! workspace script)]
-    (apply s3/put-object (conj (mapv config [:aws-credentials
-                                             :bucket
-                                             :log-key])
-                               output))
+        build (run! workspace script)
+        [date timestamp] (split (str (local-now)) #"T")
+        ]
+    (s3/put-object
+      (config :aws-credentials)
+      (config :bucket)
+      (join "/"
+            [job-name
+             "builds"
+             date
+             (join "_" [timestamp (repo :sha) (build :exit)])])
+      (build :out))
     (str
-      "Processed payload for URL " url " with output " output)))
+      "Processed payload for URL " url " with output " (build :out))))
 
 (defn -main [command & args]
   (case command
 
-    "parser"
+    parser
     (let [client (sqs-client)
           q (sqs-queue client "cu-pushes")]
       (dorun
@@ -61,7 +70,14 @@
                                   :period (config :cu-period)
                                   :limit 10))))
 
-    "worker"
+    shoveler
+    (println "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAshoveling")
+    ; (fn [message]
+    ;            (let [ret (process-job-message message)]
+    ;              (sqs/delete client message)
+    ;              ret))
+
+    worker
     (let [client (sqs-client)
           q (sqs-queue client "cu-immediate")]
       (dorun

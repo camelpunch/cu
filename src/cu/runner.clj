@@ -1,2 +1,2 @@
-(ns cu.runner
+(ns cu.runner)
 

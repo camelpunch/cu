@@ -82,6 +82,7 @@
                  login
                  (body {:payload json-payload})))
     (core/-main "parser")
+    (core/-main "shoveler")
     (core/-main "worker")
     (:body (web/app (-> (request :get "/logs")
                         login)))))

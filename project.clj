@@ -8,6 +8,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [
                  [clj-aws-s3 "0.3.7"]
+                 [clj-time "0.6.0"]
                  [clj-yaml "0.4.0"]
                  [com.cemerick/bandalore "0.0.5"]
                  [compojure "1.1.6"]
