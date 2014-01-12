@@ -1,12 +1,15 @@
 (ns cu.core
+  (:import java.util.UUID)
   (:require
-    [aws.sdk.s3 :as s3]
     [cemerick.bandalore :as sqs]
-    [clojure.java.shell :refer [sh]]
+    [clojure.set :refer [superset?]]
     [clojure.string :refer [split join]]
     [cu.config :refer [config]]
     [cu.git :as git]
+    [cu.io :as io]
     [cu.payload :as payload]
+    [cu.results :as results]
+    [cu.runner :as runner]
     )
   (:gen-class))
 
@@ -19,34 +22,94 @@
 
 (defn process-push-message [client {payload :body}]
   (when-let [url (payload/clone-target-url payload)]
-    (let [repo (git/fresh-clone url (workspace-dir (config :workspaces-path) url))]
-      (doseq [job (payload/immediate-jobs (-> repo :config :pipeline))]
-        (sqs/send client
-                  (sqs-queue client "cu-immediate")
-                  (pr-str job)))
-      (doseq [job (payload/waiting-jobs (-> repo :config :pipeline))]
-        (sqs/send client
-                  (sqs-queue client "cu-waiting")
-                  (pr-str job))))))
+    (let [repo (git/fresh-clone url (workspace-dir (config :workspaces-path) url))
+          uuid (str (java.util.UUID/randomUUID))]
+      (doseq [job (payload/all-jobs (-> repo :config :pipeline))]
+        (let [job-with-uuid (assoc job :uuid uuid)]
+          (println "--------------------------------------")
+          (println "Pushing to cu-builds:" job-with-uuid)
+          (sqs/send client
+                    (sqs-queue client "cu-builds")
+                    (pr-str job-with-uuid)))))))
 
-; currently only supports single commands
-(defn- run! [working-directory script]
-  (:out (sh script
-            :dir working-directory)))
+(defn- read-body [message]
+  (read-string (message :body)))
 
-(defn process-job-message [{raw-job :body}]
-  (let [{job-name :name
-         script   :script
-         url      :repo} (read-string raw-job)
-        workspace (join "/" [(config :workspaces-path) job-name "workspace"])
-        repo (git/fresh-clone url workspace)
-        output (run! workspace script)]
-    (apply s3/put-object (conj (mapv config [:aws-credentials
-                                             :bucket
-                                             :log-key])
-                               output))
-    (str
-      "Processed payload for URL " url " with output " output)))
+(defn run-job-from-message
+  "Process a queue item from the worker queue. Runs script, stores output.
+  Currently outputs to both a big log and separate job logs.
+  TODO: Remove big log."
+  [message]
+  (println "--------------------------------------")
+  (println "run-job-from-message")
+  (let [{uuid     :uuid
+         job-name :name
+         url      :repo
+         script   :script}  (read-body message)
+
+        workspace-path      (join "/" [(config :workspaces-path)
+                                       job-name
+                                       "workspace"])
+
+        existing-log        (io/get-key (config :log-key))
+
+        repo                (git/fresh-clone url workspace-path)
+        build               (runner/run! workspace-path script)
+        ]
+
+    (println "for" job-name)
+    (io/put (results/log-key uuid job-name (build :exit)) (build :out))
+    (io/put (config :log-key) (str existing-log (build :out)))
+    (build :out)))
+
+(defn- upstream-all-passed?
+  "Truthy if there are either no upstream jobs for the message, or
+  all upstream jobs have a key-value entry with zero exit code."
+  [message]
+  (let [{job-name             :name
+         uuid                 :uuid
+         upstream-job-names   :upstream} (read-body message)
+        passed-job-names      (results/passed-job-names (io/ls uuid))]
+    (println "--------------------------------------")
+    (println "upstream-all-passed? for" job-name)
+    (doto (or (empty? upstream-job-names)
+              (superset? passed-job-names upstream-job-names)) println)))
+
+(defn- no-pending-upstream-jobs?
+  "Predicate used to filter out messages to leave in queue
+  i.e. don't process and don't delete."
+  [message]
+  (let [{job-name             :name
+         uuid                 :uuid
+         upstream-job-names   :upstream} (read-body message)
+        all-results           (io/ls uuid)
+        completed-job-names   (results/job-names all-results)]
+    (println "--------------------------------------")
+    (println "no-pending-upstream-jobs? for" job-name)
+    (println "raw list:" all-results)
+    (println "superset?" completed-job-names upstream-job-names)
+    (doto (superset? completed-job-names upstream-job-names) println)))
+
+(comment
+  (let [config {:bucket "cu-test"
+                :aws-credentials
+                {:access-key "AKIAINNOTL4KCMANKE5Q"
+                 :secret-key "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"}}
+        prefix ""]
+    ; (dorun (map kvdelete
+    (io/ls prefix)
+    ; ))
+    ))
+
+(defn deleting-consumer
+  [client f]
+  (fn [message]
+    (let [ret (f message)]
+      (println "--------------------------------------")
+      (println "Ran" f "Return value:" ret)
+      (println "Deleting message:" message)
+      (println (sqs/delete client message))
+      ret)))
 
 (defn -main [command & args]
   (case command
@@ -55,7 +118,7 @@
     (let [client (sqs-client)
           q (sqs-queue client "cu-pushes")]
       (dorun
-        (map (sqs/deleting-consumer client (partial process-push-message client))
+        (map (deleting-consumer client (partial process-push-message client))
              (sqs/polling-receive client q
                                   :max-wait (config :cu-max-wait)
                                   :period (config :cu-period)
@@ -63,12 +126,16 @@
 
     "worker"
     (let [client (sqs-client)
-          q (sqs-queue client "cu-immediate")]
+          q (sqs-queue client "cu-builds")]
       (dorun
-        (map (sqs/deleting-consumer client process-job-message)
-             (sqs/polling-receive client q
-                                  :max-wait (config :cu-max-wait)
-                                  :period (config :cu-period)
-                                  :limit 10))))
+        (map (deleting-consumer client
+                                (runner/decide-whether-to
+                                  run-job-from-message
+                                  upstream-all-passed?))
+             (filter no-pending-upstream-jobs?
+                     (sqs/polling-receive client q
+                                          :max-wait (config :cu-max-wait)
+                                          :period (config :cu-period)
+                                          :limit 10)))))
 
     nil))

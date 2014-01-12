@@ -1,6 +1,7 @@
 (ns cu.web-test
   (:import java.util.UUID)
   (:require
+    [cemerick.bandalore :as sqs]
     [clj-yaml.core :as yaml]
     [clojure.data.codec.base64 :as b64]
     [clojure.data.json :as json]
@@ -42,7 +43,7 @@
                :log-key "logs"
                :workspaces-path "tmp/cu-workspaces"
                :pipeline {:cu-web-test-202 {:repo "/tmp/cu-test-202"
-                                 :script "true"}}})
+                                            :script "true"}}})
             (let [payload (json/write-str {:repository {:name "foo"
                                                         :url "/tmp/cu-test-202"}})
                   response (web/app (-> (request :post "/push")
@@ -60,15 +61,15 @@
                        (auth-headers request "bad" "credentials")))))
 
 ; can view output of pipeline through web interface
-(expect-let
+(expect-let-focused
   [url "/tmp/cu-test-pipe"
    json-payload (json/write-str {:repository {:name "test-project"
                                               :url  url}})]
 
-  (join "\n"
-        ["cu.yml"     ; because script is 'ls'
-         "some/dir"]) ; because script is 'pwd'
+  #"(?s)cu\.yml.*cu-test-end/workspace" ; ls and pwd respectively
   (do
+    (web/app (-> (request :delete "/logs")
+                 login))
     (create-git-repo
       url
       {:bucket "cu-test"
