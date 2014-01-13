@@ -33,27 +33,6 @@
 (defn login [request]
   (auth-headers request (env :cu-username) (env :cu-password)))
 
-; gives 202 response
-(expect {:status 202}
-        (in
-          (do
-            (create-git-repo
-              "/tmp/cu-test-202"
-              {:bucket "cu-test"
-               :log-key "logs"
-               :workspaces-path "tmp/cu-workspaces"
-               :pipeline {:cu-web-test-202 {:repo "/tmp/cu-test-202"
-                                            :script "true"}}})
-            (let [payload (json/write-str {:repository {:name "foo"
-                                                        :url "/tmp/cu-test-202"}})
-                  response (web/app (-> (request :post "/push")
-                                        login
-                                        (body {:payload payload})))]
-              ; consume queued item to avoid pollution
-              (core/-main "parser")
-              (core/-main "worker")
-              response))))
-
 ; 401s with incorrect auth
 (expect {:status 401}
         (in
@@ -61,11 +40,10 @@
                        (auth-headers request "bad" "credentials")))))
 
 ; can view output of pipeline through web interface
-(expect-let-focused
+(expect-let
   [url "/tmp/cu-test-pipe"
    json-payload (json/write-str {:repository {:name "test-project"
                                               :url  url}})]
-
   #"(?s)cu\.yml.*cu-test-end/workspace" ; ls and pwd respectively
   (do
     (web/app (-> (request :delete "/logs")
