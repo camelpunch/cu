@@ -96,7 +96,7 @@
                 {:access-key "AKIAINNOTL4KCMANKE5Q"
                  :secret-key "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"}}
         prefix ""]
-    ; (dorun (map kvdelete
+    ; (dorun (map io/delete
     (io/ls prefix)
     ; ))
     ))
