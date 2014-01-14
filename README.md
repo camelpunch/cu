@@ -2,45 +2,99 @@
 
 A work-in-progress distributed continuous integration / delivery system.
 
+Features are pretty sparse at present, and it's not yet ready for your
+complicated deployment pipeline.
+
+See the [public Pivotal Tracker project](https://www.pivotaltracker.com/s/projects/981848)
+for completed and proposed features.
+
+File GitHub Issues for feature proposals or bug reports.
+
 ## Design notes
 
 * Prefer config files over database, so config is in version control.
-* Trigger a build from a GitHub receive hook HTTP POST request, or other POST
-request with certain payload data.
+* Few dependencies, workers deployable with jars.
+* Trigger a pipeline run from a [GitHub receive hook HTTP POST request](https://help.github.com/articles/post-receive-hooks#the-payload),
+or other POST request with certain payload data.
 * Use message queues (currently SQS) to distribute work.
-* Commit-centric (git for now).
+* Parallel pipeline steps.
+Can run parallel builds and depend on them all being green before proceeding.
 
-## Usage (proposed)
+## Prerequisites
 
-Create a git repository. You can use the same repository as your project, but 
-if you need to test or deploy multiple projects, add them as submodules to a
-parent project (this can be automated with a help script in future).
+You currently need an AWS account.
+Future support for other services is anticipated.
 
-Create a configuration file called cu.yml at the root of the repository. See
-example in this repo.
+I suggest you create an IAM user with permissions to do everything on SQS and
+S3 (these are the only required services).
+You'll need the IAM user's access key and secret key.
 
----
+Alternatively, you can use a global account access key and secret.
 
-Push to web app causes fetch from repo - config is read.
+## Usage instructions for trying Cu locally
 
-Queue items:
+Install [leiningen](http://leiningen.org) first.
+This installs Clojure.
+You won't need to install Clojure on deployed systems, but you will need a JRE.
 
-Items stay in waiting queue until a flag on s3 is present that indicates ready
-to move to immediate queue e.g.
+Mac:
 
-job1 - job2 (parallel)
-job3 (next)
+```shell
+brew install leiningen
+```
 
-All jobs added to waiting queue when a push is received.
-Jobs are enqueued including data about the commit that was pushed.
-Jobs with same repo use same commit.
+Debian / Ubuntu:
 
-waiting queue runner:
-gets job1
-reads s3 config - sees that it needs job1 and job2 to be green
-enqueues both job1 and job2 to immediate
+```shell
+apt-get install leiningen
+```
 
-if there's a job1-green and a job2-green file, enqueue job3 to immediate
+Clone this repository.
+
+Modify cu.yml at the root of the repository to suit your needs.
+
+Add the following to ~/.lein/profiles.clj.
+
+```clojure
+{:user {:env {:aws-access-key "YOURACCESSKEY"
+              :aws-secret-key "YOURSECRETKEY"
+              :cu-username "yourwebusername"
+              :cu-password "yourwebpassword"}}}
+```
+
+Start the web app, which receives pushes and shows logs etc:
+
+```shell
+PORT=3000 lein run -m cu.web
+```
+
+In another shell, start a parser, which parses web pushes and queues them up
+for workers:
+
+```shell
+lein run parser
+```
+
+In one or more other shells, start a worker, which runs builds:
+
+```shell
+lein run worker
+```
+
+Create a fake payload file (to pretend GitHub has pushed):
+
+```json
+echo 'payload={"repository":{"name":"my-repo","url":"file:///path/to/cloned/cu"}}' > payload.txt
+```
+
+Trigger a fake push request:
+
+```shell
+curl -XPOST http://yourwebusername:yourwebpassword@localhost:3000/push -d@payload.txt
+```
+
+You should see your build(s) get triggered in the order you specified.
+If you ran multiple workers, they might have run in parallel.
 
 ## License
 
