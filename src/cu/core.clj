@@ -24,6 +24,7 @@
   (when-let [url (payload/clone-target-url payload)]
     (let [repo (git/fresh-clone url (workspace-dir (config :workspaces-path) url))
           uuid (str (java.util.UUID/randomUUID))]
+      (println "Iterating over jobs for" url)
       (doseq [job (payload/all-jobs (-> repo :config :pipeline))]
         (let [job-with-uuid (assoc job :uuid uuid)]
           (println "--------------------------------------")
@@ -58,8 +59,10 @@
         ]
 
     (println "for" job-name)
-    (io/put (results/log-key uuid job-name (build :exit)) (build :out))
-    (io/put (config :log-key) (str existing-log (build :out)))
+    (io/put (results/log-key uuid job-name (build :exit))
+            (build :out))
+    (io/put (config :log-key)
+            (str existing-log (build :out)))
     (build :out)))
 
 (defn- upstream-all-passed?
@@ -106,7 +109,8 @@
   (fn [message]
     (let [ret (f message)]
       (println "--------------------------------------")
-      (println "Ran" f "Return value:" ret)
+      (println "Ran:" f)
+      (println "Return value:" ret)
       (println "Deleting message:" message)
       (println (sqs/delete client message))
       ret)))
@@ -117,6 +121,7 @@
     "parser"
     (let [client (sqs-client)
           q (sqs-queue client "cu-pushes")]
+      (println "Starting parser")
       (dorun
         (map (deleting-consumer client (partial process-push-message client))
              (sqs/polling-receive client q
@@ -127,6 +132,7 @@
     "worker"
     (let [client (sqs-client)
           q (sqs-queue client "cu-builds")]
+      (println "Starting worker")
       (dorun
         (map (deleting-consumer client
                                 (runner/decide-whether-to
