@@ -83,7 +83,7 @@ lein run worker
 
 Create a fake payload file (to pretend GitHub has pushed):
 
-```json
+```shell
 echo 'payload={"repository":{"name":"my-repo","url":"file:///path/to/cloned/cu"}}' > payload.txt
 ```
 
