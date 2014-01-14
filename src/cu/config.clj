@@ -9,7 +9,7 @@
     (Long/parseLong env-value)
     Long/MAX_VALUE))
 
-(defn- retrieve-config [environment]
+(defn retrieve-config [environment]
   (-> (str (environment :home) "/cu.yml")
       slurp
       yaml/parse-string
@@ -17,8 +17,9 @@
                                :secret-key (environment :aws-secret-key)}
              :cu-username (environment :cu-username)
              :cu-password (environment :cu-password)
-             :cu-max-wait (env-or-max environment :cu-max-wait)
-             :cu-period (env-or-max environment :cu-period))))
+             :queue-max-wait (env-or-max environment :cu-max-wait)
+             :queue-period (env-or-max environment :cu-period)
+             :workspaces-path (environment :cu-workspaces-path))))
 (def retrieve-config-memo (memoize retrieve-config))
 
 (defn config [k] ((retrieve-config-memo env) k))

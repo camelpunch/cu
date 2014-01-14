@@ -125,8 +125,8 @@
       (dorun
         (map (deleting-consumer client (partial process-push-message client))
              (sqs/polling-receive client q
-                                  :max-wait (config :cu-max-wait)
-                                  :period (config :cu-period)
+                                  :max-wait (config :queue-max-wait)
+                                  :period (config :queue-period)
                                   :limit 10))))
 
     "worker"
@@ -140,8 +140,8 @@
                                   upstream-all-passed?))
              (filter no-pending-upstream-jobs?
                      (sqs/polling-receive client q
-                                          :max-wait (config :cu-max-wait)
-                                          :period (config :cu-period)
+                                          :max-wait (config :queue-max-wait)
+                                          :period (config :queue-period)
                                           :limit 10)))))
 
     nil))

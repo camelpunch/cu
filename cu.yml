@@ -1,7 +1,6 @@
 ---
 bucket: cu-test
 log-key: logs
-workspaces-path: tmp/cu-workspaces
 pipeline:
   test-web-app-units:
     script: "true"

@@ -63,8 +63,13 @@ Add the following to ~/.lein/profiles.clj.
 {:user {:env {:aws-access-key "YOURACCESSKEY"
               :aws-secret-key "YOURSECRETKEY"
               :cu-username "yourwebusername"
-              :cu-password "yourwebpassword"}}}
+              :cu-password "yourwebpassword"
+              :cu-workspaces-path "tmp/cu-workspaces"}}}
 ```
+
+Note that the above configuration keys correspond to environment variables that
+can also be set.
+For example, `AWS_ACCESS_KEY=blah` will override the above aws-access-key.
 
 Start the web app, which receives pushes and shows logs etc:
 
