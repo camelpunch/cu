@@ -31,6 +31,10 @@ You'll need the IAM user's access key and secret key.
 
 Alternatively, you can use a global account access key and secret.
 
+Create a bucket that the IAM user can access and use it in your cu.yml
+
+Cu will try to create cu-pushes and cu-builds SQS queues.
+
 ## Usage instructions for trying Cu locally
 
 Install [leiningen](http://leiningen.org) first.
