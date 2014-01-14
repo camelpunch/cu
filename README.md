@@ -76,13 +76,13 @@ In another shell, start a parser, which parses web pushes and queues them up
 for workers:
 
 ```shell
-lein run parser
+CU_MAX_WAIT=9999999 lein run parser
 ```
 
 In one or more other shells, start a worker, which runs builds:
 
 ```shell
-lein run worker
+CU_MAX_WAIT=9999999 lein run worker
 ```
 
 Create a fake payload file (to pretend GitHub has pushed):
