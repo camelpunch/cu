@@ -68,9 +68,8 @@
                         :body
                         (split #"\n")))))
 
-(println log-output)
-(expect-focused 3 (count log-output))
-(expect-focused "cu.yml" (first log-output))
-(expect-focused "cu.yml" (in (rest log-output)))
-(expect-focused (trim-newline (:out (sh "hostname"))) (in (rest log-output)))
+(expect 3 (count log-output))
+(expect "cu.yml" (first log-output))
+(expect "cu.yml" (in (rest log-output)))
+(expect (trim-newline (:out (sh "hostname"))) (in (rest log-output)))
 

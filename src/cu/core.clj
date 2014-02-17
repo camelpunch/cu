@@ -22,7 +22,9 @@
 
 (defn process-push-message [client {payload :body}]
   (when-let [url (payload/clone-target-url payload)]
-    (let [repo (git/fresh-clone url (workspace-dir (config :workspaces-path) url))
+    (let [repo (git/fresh-clone url
+                                (workspace-dir (config :workspaces-path) url)
+                                "master")
           uuid (str (java.util.UUID/randomUUID))]
       (println "Iterating over jobs for" url)
       (doseq [partial-job (payload/all-jobs (-> repo :config :pipeline))]
@@ -48,7 +50,8 @@
   (println "run-job-from-message")
   (let [{uuid     :uuid
          job-name :name
-         url      :repo
+         git-url  :repo
+         git-ref  :ref
          script   :script}  (read-body message)
 
         workspace-path      (join "/" [(config :workspaces-path)
@@ -57,7 +60,7 @@
 
         existing-log        (io/get-key (config :log-key))
 
-        repo                (git/fresh-clone url workspace-path)
+        repo                (git/fresh-clone git-url workspace-path git-ref)
         build               (runner/run! workspace-path script)
         ]
 
