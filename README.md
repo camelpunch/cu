@@ -56,6 +56,12 @@ apt-get install leiningen
 Clone this repository.
 
 Modify cu.yml at the root of the repository to suit your needs.
+Symlink it to your home directory:
+
+```shell
+cd
+ln -s /path/to/cloned/cu/cu.yml
+```
 
 Add the following to ~/.lein/profiles.clj.
 
