@@ -6,7 +6,7 @@
     [clojure.data.codec.base64 :as b64]
     [clojure.data.json :as json]
     [clojure.java.shell :refer [sh]]
-    [clojure.string :refer [join trim-newline]]
+    [clojure.string :refer [join split trim-newline]]
     [cu.core :as core]
     [cu.web :as web]
     [cu.git-test-helpers :refer [git]]
@@ -25,12 +25,18 @@
     (git "add" "-A")
     (git "commit" "-m" "first commit")))
 
+(defn commit-file-to-repo [path filename]
+  (spit (str path "/" filename) "")
+  (doto path
+    (git "add" "-A")
+    (git "commit" "-m" "second commit")))
+
 (defn encode64 [string]
   (String. (b64/encode (byte-array (map byte string)))))
 (defn auth-headers [request & creds]
   (header request "Authorization"
           (str "Basic " (encode64 (join ":" creds)))))
-(defn login [request]
+(defn logged-in [request]
   (auth-headers request (env :cu-username) (env :cu-password)))
 
 ; 401s with incorrect auth
@@ -40,28 +46,31 @@
                        (auth-headers request "bad" "credentials")))))
 
 ; can view output of pipeline through web interface
-(expect-let
-  [url "/tmp/cu-test-pipe"
-   json-payload (json/write-str {:repository {:name "test-project"
-                                              :url  url}})]
-  #"(?s)cu\.yml.*cu-test-end/workspace" ; ls and pwd respectively
-  (do
-    (web/app (-> (request :delete "/logs")
-                 login))
-    (create-git-repo
-      url
-      {:bucket "cu-test"
-       :log-key "logs"
-       :pipeline {:cu-test-start  {:repo   url
-                                   :script "ls"}
-                  :downstream
-                  {:cu-test-end   {:repo   url
-                                   :script "pwd"}}}})
-    (web/app (-> (request :post "/push")
-                 login
-                 (body {:payload json-payload})))
-    (core/-main "parser")
-    (core/-main "worker")
-    (:body (web/app (-> (request :get "/logs")
-                        login)))))
+(defn run-pipeline {:expectations-options :before-run} []
+  (def log-output (let [repo-url  "/tmp/cu-test-pipe"
+                        json-payload  (json/write-str {:repository {:name "test-project"
+                                                                    :url  repo-url}})]
+                    (web/app (-> (request :delete "/logs") logged-in))
+                    (create-git-repo repo-url
+                                     {:pipeline
+                                      {:first-ls  {:repo   repo-url
+                                                   :script "ls"}
+                                       :downstream   {:second-ls   {:repo    repo-url
+                                                                    :script  "ls"}
+                                                      :hostname    {:repo    repo-url
+                                                                    :script  "hostname"}}}})
+                    (web/app (-> (request :post "/push") logged-in
+                                 (body {:payload json-payload})))
+                    (core/-main "parser")
+                    (commit-file-to-repo repo-url "already-parsed-so-should-not-appear")
+                    (core/-main "worker")
+                    (-> (web/app (-> (request :get "/logs") logged-in))
+                        :body
+                        (split #"\n")))))
+
+(println log-output)
+(expect-focused 3 (count log-output))
+(expect-focused "cu.yml" (first log-output))
+(expect-focused "cu.yml" (in (rest log-output)))
+(expect-focused (trim-newline (:out (sh "hostname"))) (in (rest log-output)))
 

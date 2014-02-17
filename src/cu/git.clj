@@ -14,5 +14,6 @@
   (let [config-path (str dest "/cu.yml")]
     (println "GOT CONFIG PATH" config-path)
     {:name    (last (split dest #"/"))
+     :ref     ((sh "git" "show-ref" "-s" "heads/master") :out)
      :config  (-> config-path slurp yaml/parse-string)}))
 

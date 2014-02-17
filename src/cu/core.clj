@@ -25,13 +25,16 @@
     (let [repo (git/fresh-clone url (workspace-dir (config :workspaces-path) url))
           uuid (str (java.util.UUID/randomUUID))]
       (println "Iterating over jobs for" url)
-      (doseq [job (payload/all-jobs (-> repo :config :pipeline))]
-        (let [job-with-uuid (assoc job :uuid uuid)]
+      (doseq [partial-job (payload/all-jobs (-> repo :config :pipeline))]
+        (let [job (assoc partial-job
+                         :uuid  uuid
+                         :ref   (repo :ref))]
           (println "--------------------------------------")
-          (println "Pushing to cu-builds:" job-with-uuid)
+          (println "Pushing build of" (partial-job :name)
+                   "to cu-builds:" job)
           (sqs/send client
                     (sqs-queue client "cu-builds")
-                    (pr-str job-with-uuid)))))))
+                    (pr-str job)))))))
 
 (defn- read-body [message]
   (read-string (message :body)))
