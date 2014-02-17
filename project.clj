@@ -33,4 +33,4 @@
               :env {; SQS settings tweaked for automated tests - override in
                     ; ~/.lein/profiles.clj
                     :cu-period "1000"
-                    :cu-max-wait "5000"}}})
+                    :cu-max-wait "10000"}}})
