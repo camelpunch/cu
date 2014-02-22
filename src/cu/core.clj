@@ -4,7 +4,7 @@
     [cemerick.bandalore :as sqs]
     [clojure.set :refer [superset?]]
     [clojure.string :refer [split join]]
-    [cu.config :refer [config]]
+    [cu.config :as global-config]
     [cu.git :as git]
     [cu.io :as io]
     [cu.payload :as payload]
@@ -13,17 +13,16 @@
     )
   (:gen-class))
 
-(defn- sqs-client [] (apply sqs/create-client
-                            (vals (config :aws-credentials))))
+(defn- sqs-client [credentials] (apply sqs/create-client credentials))
 (defn- sqs-queue [client queue-name] (sqs/create-queue client queue-name))
 
 (defn- workspace-dir [basedir url]
   (join "/" [basedir (last (split url #"/")) "workspace"]))
 
-(defn process-push-message [client {payload :body}]
+(defn process-push-message [client workspaces-path {payload :body}]
   (when-let [url (payload/clone-target-url payload)]
     (let [repo (git/fresh-clone url
-                                (workspace-dir (config :workspaces-path) url)
+                                (workspace-dir workspaces-path url)
                                 "master")
           uuid (str (java.util.UUID/randomUUID))]
       (println "Iterating over jobs for" url)
@@ -54,11 +53,11 @@
          git-ref  :ref
          script   :script}  (read-body message)
 
-        workspace-path      (join "/" [(config :workspaces-path)
+        workspace-path      (join "/" [(global-config/config :workspaces-path)
                                        job-name
                                        "workspace"])
 
-        existing-log        (io/get-key (config :log-key))
+        existing-log        (io/get-key (global-config/config :log-key))
 
         repo                (git/fresh-clone git-url workspace-path git-ref)
         build               (runner/run! workspace-path script)
@@ -67,7 +66,7 @@
     (println "for" job-name)
     (io/put (results/log-key uuid job-name (build :exit))
             (build :out))
-    (io/put (config :log-key)
+    (io/put (global-config/config :log-key)
             (str existing-log (build :out)))
     (build :out)))
 
@@ -99,55 +98,42 @@
     (println "superset?" completed-job-names upstream-job-names)
     (doto (superset? completed-job-names upstream-job-names) println)))
 
-(comment
-  (let [config {:bucket "cu-test"
-                :aws-credentials
-                {:access-key "AKIAINNOTL4KCMANKE5Q"
-                 :secret-key "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"}}
-        prefix ""]
-    ; (dorun (map io/delete
-    (io/ls prefix)
-    ; ))
-    ))
+(defn parser [config]
+  (let [client (sqs-client (vals (config :aws-credentials)))
+        q (sqs-queue client "cu-pushes")] ; TODO: use queue name from config
+    (println "Starting parser")
+    (dorun
+      (map (sqs/deleting-consumer client
+                                  (partial process-push-message
+                                           client
+                                           (config :workspaces-path)))
+           (sqs/polling-receive client q
+                                :max-wait (config :queue-max-wait)
+                                :period (config :queue-period)
+                                :limit 10)))))
 
-(defn deleting-consumer
-  [client f]
-  (fn [message]
-    (let [ret (f message)]
-      (println "--------------------------------------")
-      (println "Ran:" f)
-      (println "Return value:" ret)
-      (println "Deleting message:" message)
-      (println (sqs/delete client message))
-      ret)))
+(defn worker [config]
+  (let [client (sqs-client (vals (config :aws-credentials)))
+        q (sqs-queue client "cu-builds")]
+    (println "Starting worker")
+    (dorun
+      (map (sqs/deleting-consumer client
+                                  (runner/decide-whether-to
+                                    run-job-from-message
+                                    upstream-all-passed?))
+           (filter no-pending-upstream-jobs?
+                   (sqs/polling-receive client q
+                                        :max-wait (config :queue-max-wait)
+                                        :period (config :queue-period)
+                                        :limit 10))))))
 
 (defn -main [command & args]
   (case command
 
     "parser"
-    (let [client (sqs-client)
-          q (sqs-queue client "cu-pushes")]
-      (println "Starting parser")
-      (dorun
-        (map (deleting-consumer client (partial process-push-message client))
-             (sqs/polling-receive client q
-                                  :max-wait (config :queue-max-wait)
-                                  :period (config :queue-period)
-                                  :limit 10))))
+    (parser global-config/config)
 
     "worker"
-    (let [client (sqs-client)
-          q (sqs-queue client "cu-builds")]
-      (println "Starting worker")
-      (dorun
-        (map (deleting-consumer client
-                                (runner/decide-whether-to
-                                  run-job-from-message
-                                  upstream-all-passed?))
-             (filter no-pending-upstream-jobs?
-                     (sqs/polling-receive client q
-                                          :max-wait (config :queue-max-wait)
-                                          :period (config :queue-period)
-                                          :limit 10)))))
+    (worker global-config/config)
 
     nil))
