@@ -44,7 +44,7 @@
   "Process a queue item from the worker queue. Runs script, stores output.
   Currently outputs to both a big log and separate job logs.
   TODO: Remove big log."
-  [message]
+  [workspaces-path big-log-key message]
   (println "--------------------------------------")
   (println "run-job-from-message")
   (let [{uuid     :uuid
@@ -53,11 +53,9 @@
          git-ref  :ref
          script   :script}  (read-body message)
 
-        workspace-path      (join "/" [(global-config/config :workspaces-path)
-                                       job-name
-                                       "workspace"])
+        workspace-path      (join "/" [workspaces-path job-name "workspace"])
 
-        existing-log        (io/get-key (global-config/config :log-key))
+        existing-big-log    (io/get-key big-log-key)
 
         repo                (git/fresh-clone git-url workspace-path git-ref)
         build               (runner/run! workspace-path script)
@@ -66,8 +64,7 @@
     (println "for" job-name)
     (io/put (results/log-key uuid job-name (build :exit))
             (build :out))
-    (io/put (global-config/config :log-key)
-            (str existing-log (build :out)))
+    (io/put big-log-key (str existing-big-log (build :out)))
     (build :out)))
 
 (defn- upstream-all-passed?
@@ -119,7 +116,9 @@
     (dorun
       (map (sqs/deleting-consumer client
                                   (runner/decide-whether-to
-                                    run-job-from-message
+                                    (partial run-job-from-message
+                                             (config :workspaces-path)
+                                             (config :log-key))
                                     upstream-all-passed?))
            (filter no-pending-upstream-jobs?
                    (sqs/polling-receive client q
