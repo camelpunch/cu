@@ -1,6 +1,8 @@
 ---
 bucket: cu-test
 log-key: logs
+push-queue: cu-pushes
+build-queue: cu-builds
 pipeline:
   test-web-app-units:
     script: "true"

@@ -61,9 +61,9 @@
                                                                     :script  "hostname"}}}})
                     (web/app (-> (request :post "/push") logged-in
                                  (body {:payload json-payload})))
-                    (core/-main "parser")
+                    (core/parser cu.config/config) ; TODO: create own config at run time. Then pass queue names through.
                     (commit-file-to-repo repo-url "already-parsed-so-should-not-appear")
-                    (core/-main "worker")
+                    (core/worker cu.config/config)
                     (-> (web/app (-> (request :get "/logs") logged-in))
                         :body
                         (split #"\n")))))

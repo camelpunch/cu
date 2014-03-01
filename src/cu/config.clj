@@ -20,6 +20,5 @@
              :queue-max-wait (env-or-max environment :cu-max-wait)
              :queue-period (env-or-max environment :cu-period)
              :workspaces-path (environment :cu-workspaces-path))))
-(def retrieve-config-memo (memoize retrieve-config))
 
-(defn config [k] ((retrieve-config-memo env) k))
+(def config (retrieve-config env))

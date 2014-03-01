@@ -19,7 +19,7 @@
 (defn- workspace-dir [basedir url]
   (join "/" [basedir (last (split url #"/")) "workspace"]))
 
-(defn process-push-message [client workspaces-path {payload :body}]
+(defn process-push-message [client workspaces-path build-queue-name {payload :body}]
   (when-let [url (payload/clone-target-url payload)]
     (let [repo (git/fresh-clone url
                                 (workspace-dir workspaces-path url)
@@ -32,9 +32,9 @@
                          :ref   (repo :ref))]
           (println "--------------------------------------")
           (println "Pushing build of" (partial-job :name)
-                   "to cu-builds:" job)
+                   "to build queue:" job)
           (sqs/send client
-                    (sqs-queue client "cu-builds")
+                    (sqs-queue client build-queue-name)
                     (pr-str job)))))))
 
 (defn- read-body [message]
@@ -44,7 +44,9 @@
   "Process a queue item from the worker queue. Runs script, stores output.
   Currently outputs to both a big log and separate job logs.
   TODO: Remove big log."
-  [workspaces-path big-log-key message]
+  [workspaces-path big-log-key
+   credentials bucket ; TODO: make all these args a map
+   message]
   (println "--------------------------------------")
   (println "run-job-from-message")
   (let [{uuid     :uuid
@@ -55,39 +57,33 @@
 
         workspace-path      (join "/" [workspaces-path job-name "workspace"])
 
-        existing-big-log    (io/get-key big-log-key)
+        existing-big-log    (io/get-key credentials bucket big-log-key)
 
         repo                (git/fresh-clone git-url workspace-path git-ref)
         build               (runner/run! workspace-path script)
         ]
 
     (println "for" job-name)
-    (io/put (results/log-key uuid job-name (build :exit))
+    (io/put credentials bucket
+            (results/log-key uuid job-name (build :exit))
             (build :out))
-    (io/put big-log-key (str existing-big-log (build :out)))
+    (io/put credentials bucket
+            big-log-key
+            (str existing-big-log (build :out)))
     (build :out)))
-
-(defn- upstream-all-passed?
-  "Truthy if there are either no upstream jobs for the message, or
-  all upstream jobs have a key-value entry with zero exit code."
-  [message]
-  (let [{job-name             :name
-         uuid                 :uuid
-         upstream-job-names   :upstream} (read-body message)
-        passed-job-names      (results/passed-job-names (io/ls uuid))]
-    (println "--------------------------------------")
-    (println "upstream-all-passed? for" job-name)
-    (doto (or (empty? upstream-job-names)
-              (superset? passed-job-names upstream-job-names)) println)))
 
 (defn- no-pending-upstream-jobs?
   "Predicate used to filter out messages to leave in queue
   i.e. don't process and don't delete."
-  [message]
-  (let [{job-name             :name
+  [credentials bucket
+   message]
+  (let [ls (partial io/ls
+                    credentials
+                    bucket)
+        {job-name             :name
          uuid                 :uuid
          upstream-job-names   :upstream} (read-body message)
-        all-results           (io/ls uuid)
+        all-results           (ls uuid)
         completed-job-names   (results/job-names all-results)]
     (println "--------------------------------------")
     (println "no-pending-upstream-jobs? for" job-name)
@@ -97,30 +93,46 @@
 
 (defn parser [config]
   (let [client (sqs-client (vals (config :aws-credentials)))
-        q (sqs-queue client "cu-pushes")] ; TODO: use queue name from config
+        q (sqs-queue client (config :push-queue))] ; TODO: use queue name from config
     (println "Starting parser")
     (dorun
       (map (sqs/deleting-consumer client
                                   (partial process-push-message
                                            client
-                                           (config :workspaces-path)))
+                                           (config :workspaces-path)
+                                           (config :build-queue)))
            (sqs/polling-receive client q
                                 :max-wait (config :queue-max-wait)
                                 :period (config :queue-period)
                                 :limit 10)))))
 
 (defn worker [config]
-  (let [client (sqs-client (vals (config :aws-credentials)))
-        q (sqs-queue client "cu-builds")]
+  (let [credentials (config :aws-credentials)
+        client (sqs-client (vals credentials))
+        q (sqs-queue client (config :build-queue))
+        ls (partial io/ls credentials (config :bucket))
+        upstream-all-passed? (fn [message]
+                               (let [{job-name             :name
+                                      uuid                 :uuid
+                                      upstream-job-names   :upstream} (read-body message)
+                                     passed-job-names      (results/passed-job-names (ls uuid))]
+                                 (println "--------------------------------------")
+                                 (println "upstream-all-passed? for" job-name)
+                                 (doto (or (empty? upstream-job-names)
+                                           (superset? passed-job-names upstream-job-names)) println)))]
     (println "Starting worker")
     (dorun
       (map (sqs/deleting-consumer client
                                   (runner/decide-whether-to
                                     (partial run-job-from-message
                                              (config :workspaces-path)
-                                             (config :log-key))
+                                             (config :log-key)
+                                             (config :aws-credentials)
+                                             (config :bucket))
                                     upstream-all-passed?))
-           (filter no-pending-upstream-jobs?
+           (filter (partial no-pending-upstream-jobs?
+                            (config :aws-credentials)
+                            (config :bucket))
                    (sqs/polling-receive client q
                                         :max-wait (config :queue-max-wait)
                                         :period (config :queue-period)

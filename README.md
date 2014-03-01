@@ -33,7 +33,7 @@ Alternatively, you can use a global account access key and secret.
 
 Create a bucket that the IAM user can access and use it in your cu.yml
 
-Cu will try to create cu-pushes and cu-builds SQS queues.
+Cu will try to create your configured push and build queues.
 
 ## Usage instructions for trying Cu locally
 
