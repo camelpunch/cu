@@ -39,9 +39,6 @@
                     (sqs-queue client build-queue-name)
                     (pr-str job)))))))
 
-(defn- read-body [message]
-  (read-string (message :body)))
-
 (defn- read-body-keys [message & ks]
   (-> (message :body)
       read-string
