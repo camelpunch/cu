@@ -12,8 +12,8 @@
 (defn job-names [log-keys]
   (set (map job-name log-keys)))
 
-(defn- passed-job-name? [job-name]
-  (re-find #"-exit-0$" job-name))
+(defn- passed-job-name? [log-key]
+  (re-find #"-exit-0$" log-key))
 
 (defn passed-job-names [log-keys]
   (job-names (filter passed-job-name? log-keys)))
