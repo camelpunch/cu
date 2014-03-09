@@ -46,13 +46,12 @@
                        :secret-key (env :aws-secret-key)}
      :cu-username "test-username"
      :cu-password "test-password"
-     :queue-period 1000
-     :queue-max-wait 20000
+     :queue-period 5000
+     :queue-max-wait 5000
      :bucket "cu-test"
      :log-key "logs"
      :push-queue (str "cu-pushes-test-" uuid)
      :build-queue (str "cu-builds-test-" uuid)
-
      ; TODO: separate web config from parser / worker config
      :workspaces-path "tmp/cu-workspaces"}))
 

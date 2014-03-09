@@ -6,7 +6,6 @@
     [compojure.core :refer :all]
     [compojure.handler :as handler]
     [compojure.route :refer [not-found]]
-    [cu.config :as global-config]
     [ring.adapter.jetty :refer [run-jetty]]
     [ring.middleware.basic-authentication :refer :all]
     ))
@@ -51,5 +50,5 @@
 
 (defn -main []
   (let [port (Integer/parseInt (System/getenv "PORT"))]
-    (run-jetty (app global-config/config) {:port port})))
+    (run-jetty (app cu.config/config) {:port port})))
 
