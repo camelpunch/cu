@@ -41,6 +41,12 @@
                    (mapv config [:aws-credentials :bucket :log-key]))
             {:status 200})
 
+    (DELETE "/queues" []
+            (let [client (sqs-client (config :aws-credentials))]
+            (sqs/delete-queue client (config :push-queue))
+            (sqs/delete-queue client (config :build-queue))
+            {:status 200}))
+
     (not-found "Not Found")))
 
 (defn app [config]

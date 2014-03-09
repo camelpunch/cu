@@ -46,8 +46,8 @@
                        :secret-key (env :aws-secret-key)}
      :cu-username "test-username"
      :cu-password "test-password"
-     :queue-period 5000
-     :queue-max-wait 5000
+     :queue-period 1000
+     :queue-max-wait 10000
      :bucket "cu-test"
      :log-key "logs"
      :push-queue (str "cu-pushes-test-" uuid)
@@ -83,6 +83,7 @@
                     (core/parser test-config)
                     (commit-file-to-repo repo-url "already-parsed-so-should-not-appear")
                     (core/worker test-config)
+                    (web-app (-> (request :delete "/queues") logged-in))
                     (-> (web-app (-> (request :get "/logs") logged-in))
                         :body
                         (split #"\n")))))
