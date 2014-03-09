@@ -27,7 +27,7 @@
 (defn- job-log-prefix [job]
   (str "logs/" (job :uuid)))
 
-(defn process-push-message [client workspaces-path build-queue-name {payload :body}]
+(defn- process-push-message [client workspaces-path build-queue-name {payload :body}]
   (when-let [url (payload/clone-target-url payload)]
     (let [repo (git/fresh-clone url
                                 (workspace-dir workspaces-path url)
