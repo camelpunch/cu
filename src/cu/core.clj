@@ -92,7 +92,7 @@
 
 (defn parser [config]
   (let [client (sqs-client (vals (config :aws-credentials)))
-        q (sqs-queue client (config :push-queue))] ; TODO: use queue name from config
+        q (sqs-queue client (config :push-queue))]
     (println "Starting parser")
     (dorun
       (map (sqs/deleting-consumer client
