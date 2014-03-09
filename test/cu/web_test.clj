@@ -16,6 +16,7 @@
     ))
 
 (defn mkdir-p [path] (sh "mkdir" "-p" path))
+
 (defn create-git-repo [path config]
   (sh "rm" "-rf" path)
   (mkdir-p path)
@@ -33,12 +34,17 @@
 
 (defn encode64 [string]
   (String. (b64/encode (byte-array (map byte string)))))
+
 (defn auth-headers [request & creds]
   (header request "Authorization"
           (str "Basic " (encode64 (join ":" creds)))))
+
 (defn authenticator [config]
   (fn [request]
     (auth-headers request (config :cu-username) (config :cu-password))))
+
+(defn shell-output [command]
+  (trim-newline (:out (sh command))))
 
 (def test-config
   (let [uuid (UUID/randomUUID)]
@@ -46,8 +52,8 @@
                        :secret-key (env :aws-secret-key)}
      :cu-username "test-username"
      :cu-password "test-password"
-     :queue-period 1000
-     :queue-max-wait 10000
+     :queue-period 1
+     :queue-max-wait 1
      :bucket "cu-test"
      :log-key "logs"
      :push-queue (str "cu-pushes-test-" uuid)
@@ -63,36 +69,49 @@
           (web-app (-> (request :post "/push")
                        (auth-headers "bad" "credentials")))))
 
-; can view output of pipeline through web interface
-(defn run-pipeline {:expectations-options :before-run} []
-  (def log-output (let [repo-url  "/tmp/cu-test-pipe"
-                        json-payload  (json/write-str {:repository {:name "test-project"
-                                                                    :url  repo-url}})
-                        logged-in     (authenticator test-config)]
-                    (web-app (-> (request :delete "/logs") logged-in))
-                    (create-git-repo repo-url
-                                     {:pipeline
-                                      {:ls  {:repo   repo-url
-                                             :script "ls"}
-                                       :downstream   {:whoami     {:repo    repo-url
-                                                                   :script  "whoami"}
-                                                      :hostname   {:repo    repo-url
-                                                                   :script  "hostname"}}}})
-                    (web-app (-> (request :post "/push") logged-in
-                                 (body {:payload json-payload})))
-                    (core/parser test-config)
-                    (commit-file-to-repo repo-url "already-parsed-so-should-not-appear")
-                    (core/worker test-config)
-                    (web-app (-> (request :delete "/queues") logged-in))
-                    (-> (web-app (-> (request :get "/logs") logged-in))
-                        :body
-                        (split #"\n")))))
+(defn slow-pipeline-run []
+  (let [log-output (let [repo-url  "/tmp/cu-test-pipe"
+                         json-payload  (json/write-str {:repository {:name "test-project"
+                                                                     :url  repo-url}})
+                         logged-in     (authenticator test-config)]
+                     (web-app (-> (request :delete "/logs") logged-in))
+                     (create-git-repo repo-url
+                                      {:pipeline
+                                       {:ls  {:repo   repo-url
+                                              :script "ls"}
+                                        :downstream   {:whoami     {:repo    repo-url
+                                                                    :script  "whoami"}
+                                                       :hostname   {:repo    repo-url
+                                                                    :script  "hostname"}}}})
+                     ; enqueues stuff to pushes queue
+                     (web-app (-> (request :post "/push") logged-in
+                                  (body {:payload json-payload})))
 
-(defn shell-output [command]
-  (trim-newline (:out (sh command))))
+                     ; enqueues stuff to builds queue
+                     (core/parser test-config)
 
-(expect 3 (count log-output))
-(expect "cu.yml" (first log-output))
-(expect (shell-output "whoami") (in (rest log-output)))
-(expect (shell-output "hostname") (in (rest log-output)))
+                     (commit-file-to-repo repo-url "already-parsed-so-should-not-appear")
+
+                     ; processes builds queue
+                     (core/worker test-config)
+
+                     (println "Sleeping for visibility timeout")
+                     (Thread/sleep 1000)
+
+                     ; try to process the rest (sometimes unnecessary)
+                     (core/worker test-config)
+
+                     (web-app (-> (request :delete "/queues") logged-in))
+                     (-> (web-app (-> (request :get "/logs") logged-in))
+                         :body
+                         (split #"\n")))]
+    {:number-of-log-lines (count log-output)
+     :first-line          (first log-output)
+     :rest-of-lines       (set (rest log-output))}))
+
+(expect
+  {:number-of-log-lines 3
+   :first-line          "cu.yml"
+   :rest-of-lines       #{(shell-output "whoami") (shell-output "hostname")}}
+  (slow-pipeline-run))
 

@@ -3,7 +3,7 @@
     [expectations :refer :all]
     [cu.results :refer :all]))
 
-(expect "deadbeef/myjob-exit-0"
+(expect "logs/deadbeef/myjob-exit-0"
         (log-key "deadbeef" "myjob" 0))
 
 (expect #{"mypassedjob" "myfailedjob" "slashy/job/name"}

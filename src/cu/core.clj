@@ -14,12 +14,18 @@
   (:gen-class))
 
 (defn- sqs-client [credentials] (apply sqs/create-client credentials))
-(defn- sqs-queue [client queue-name] (sqs/create-queue client queue-name))
+(defn- sqs-queue [client queue-name]
+  (let [q (sqs/create-queue client queue-name)]
+    (sqs/queue-attrs client queue-name { "VisibilityTimeout" 1 })
+    q))
 
 (defn- path [& parts] (join "/" parts))
 
 (defn- workspace-dir [basedir url]
   (path basedir (last (split url #"/")) "workspace"))
+
+(defn- job-log-prefix [job]
+  (str "logs/" (job :uuid)))
 
 (defn process-push-message [client workspaces-path build-queue-name {payload :body}]
   (when-let [url (payload/clone-target-url payload)]
@@ -82,10 +88,11 @@
                                        credentials
                                        bucket)
         job                   (read-body-keys message :name :uuid :upstream)
-        all-results           (ls (job :uuid))
+        all-results           (ls (job-log-prefix job))
         completed-job-names   (results/job-names all-results)]
     (println "--------------------------------------")
     (println "no-pending-upstream-jobs? for" (job :name))
+    (println "job UUID:" (job :uuid))
     (println "raw list:" all-results)
     (println "superset?" completed-job-names (job :upstream))
     (doto (superset? completed-job-names (job :upstream)) println)))
@@ -117,7 +124,7 @@
         run-job-from-message  (message-job-runner config)
         upstream-all-passed?  (fn [message]
                                 (let [job                (read-body-keys message :name :uuid :upstream)
-                                      passed-job-names   (results/passed-job-names (ls (job :uuid)))]
+                                      passed-job-names   (results/passed-job-names (ls (job-log-prefix job)))]
                                   (println "--------------------------------------")
                                   (println "upstream-all-passed? for" (job :name))
                                   (doto (or (empty? (job :upstream))

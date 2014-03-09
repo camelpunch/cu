@@ -1,13 +1,12 @@
 (ns cu.results
   (:require
-    [clojure.string :refer [split]]))
+    [clojure.string :refer [join]]))
 
 (defn log-key [uuid job-name exit-code]
-  (str uuid "/" job-name "-exit-" exit-code))
+  (join "/" ["logs" uuid (str job-name "-exit-" exit-code)]))
 
 (defn- job-name [log-key]
-  (second (split (first (split log-key #"-exit-"))
-                 #"/" 2)))
+  (clojure.string/replace log-key #"logs/[^/]+/(.+)-exit-\d+$" "$1"))
 
 (defn job-names [log-keys]
   (set (map job-name log-keys)))
