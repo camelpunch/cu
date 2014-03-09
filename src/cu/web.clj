@@ -6,46 +6,50 @@
     [compojure.core :refer :all]
     [compojure.handler :as handler]
     [compojure.route :refer [not-found]]
-    [cu.config :refer [config]]
+    [cu.config :as global-config]
     [ring.adapter.jetty :refer [run-jetty]]
     [ring.middleware.basic-authentication :refer :all]
     ))
 
-(defn- sqs-client [] (apply sqs/create-client
-                            (vals (config :aws-credentials))))
-(defn- sqs-queue [client] (sqs/create-queue client "cu-pushes"))
+(defn- sqs-client [credentials] (apply sqs/create-client (vals credentials)))
+(defn- sqs-queue [client queue-name] (sqs/create-queue client queue-name))
 
-(defn- authenticated? [username password]
-  (and (= username (config :cu-username))
-       (= password (config :cu-password))))
+(defn- authenticator [username password]
+  (fn [request-username request-password]
+    (and (= request-username username)
+         (= request-password password))))
 
-(defroutes app-routes
-  (POST "/push" [_ & {raw-payload :payload}]
-        (let [client (sqs-client)]
-          (sqs/send client
-                    (sqs-queue client)
-                    (pr-str (json/read-str raw-payload)))
-          {:status 202}))
+(defn create-app-routes [config]
+  (defroutes app-routes
+    (POST "/push" [_ & {raw-payload :payload}]
+          (let [client (sqs-client (config :aws-credentials))]
+            (sqs/send client
+                      (sqs-queue client (config :push-queue))
+                      (pr-str (json/read-str raw-payload)))
+            {:status 202}))
 
-  (GET "/logs" []
-       {:status 200
-        :body (-> (apply s3/get-object ; TODO: list objects - get latest push dir,
-                                       ; then concat the logs in that dir
-                         (mapv config [:aws-credentials :bucket :log-key]))
-                  :content
-                  slurp)})
+    (GET "/logs" []
+         {:status 200
+          ; TODO: list objects - get latest push dir,
+          ; then concat the logs in that dir
+          :body (-> (apply s3/get-object
+                           (mapv config [:aws-credentials :bucket :log-key]))
+                    :content
+                    slurp)})
 
-  (DELETE "/logs" []
-          (apply s3/delete-object
-                 (mapv config [:aws-credentials :bucket :log-key]))
-          {:status 200})
+    (DELETE "/logs" []
+            (apply s3/delete-object
+                   (mapv config [:aws-credentials :bucket :log-key]))
+            {:status 200})
 
-  (not-found "Not Found"))
+    (not-found "Not Found")))
 
-(def app (-> (handler/api app-routes)
-             (wrap-basic-authentication authenticated?)))
+(defn app [config]
+  (-> (handler/api (create-app-routes config))
+      (wrap-basic-authentication (authenticator (config :cu-username)
+                                                (config :cu-password)))))
 
 (defn -main []
   (let [port (Integer/parseInt (System/getenv "PORT"))]
-    (run-jetty app {:port port})))
+    (run-jetty (app global-config/config) {:port port})))
 

@@ -36,21 +36,41 @@
 (defn auth-headers [request & creds]
   (header request "Authorization"
           (str "Basic " (encode64 (join ":" creds)))))
-(defn logged-in [request]
-  (auth-headers request (env :cu-username) (env :cu-password)))
+(defn authenticator [config]
+  (fn [request]
+    (auth-headers request (config :cu-username) (config :cu-password))))
+
+(def test-config
+  (let [uuid (UUID/randomUUID)]
+    {:aws-credentials {:access-key (env :aws-access-key)
+                       :secret-key (env :aws-secret-key)}
+     :cu-username "test-username"
+     :cu-password "test-password"
+     :queue-period 1000
+     :queue-max-wait 20000
+     :bucket "cu-test"
+     :log-key "logs"
+     :push-queue (str "cu-pushes-test-" uuid)
+     :build-queue (str "cu-builds-test-" uuid)
+
+     ; TODO: separate web config from parser / worker config
+     :workspaces-path "tmp/cu-workspaces"}))
+
+(def web-app (web/app test-config))
 
 ; 401s with incorrect auth
 (expect {:status 401}
         (in
-          (web/app (-> (request :post "/push")
-                       (auth-headers request "bad" "credentials")))))
+          (web-app (-> (request :post "/push")
+                       (auth-headers "bad" "credentials")))))
 
 ; can view output of pipeline through web interface
 (defn run-pipeline {:expectations-options :before-run} []
   (def log-output (let [repo-url  "/tmp/cu-test-pipe"
                         json-payload  (json/write-str {:repository {:name "test-project"
-                                                                    :url  repo-url}})]
-                    (web/app (-> (request :delete "/logs") logged-in))
+                                                                    :url  repo-url}})
+                        logged-in     (authenticator test-config)]
+                    (web-app (-> (request :delete "/logs") logged-in))
                     (create-git-repo repo-url
                                      {:pipeline
                                       {:first-ls  {:repo   repo-url
@@ -59,12 +79,12 @@
                                                                     :script  "ls"}
                                                       :hostname    {:repo    repo-url
                                                                     :script  "hostname"}}}})
-                    (web/app (-> (request :post "/push") logged-in
+                    (web-app (-> (request :post "/push") logged-in
                                  (body {:payload json-payload})))
-                    (core/parser cu.config/config) ; TODO: create own config at run time. Then pass queue names through.
+                    (core/parser test-config)
                     (commit-file-to-repo repo-url "already-parsed-so-should-not-appear")
-                    (core/worker cu.config/config)
-                    (-> (web/app (-> (request :get "/logs") logged-in))
+                    (core/worker test-config)
+                    (-> (web-app (-> (request :get "/logs") logged-in))
                         :body
                         (split #"\n")))))
 
