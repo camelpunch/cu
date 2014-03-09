@@ -90,7 +90,11 @@
     (println "superset?" completed-job-names (job :upstream))
     (doto (superset? completed-job-names (job :upstream)) println)))
 
-(defn parser [config]
+(defn parser
+  "Grabs notifications from the push-queue,
+  clones each git repo pushed
+  and enqueues on the build queue based on each repo's pipeline config."
+  [config]
   (let [client (sqs-client (vals (config :aws-credentials)))
         q (sqs-queue client (config :push-queue))]
     (println "Starting parser")
