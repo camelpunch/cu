@@ -66,10 +66,11 @@ ln -s /path/to/cloned/cu/cu.yml
 Add the following to ~/.lein/profiles.clj.
 
 ```clojure
-{:user {:env {:aws-access-key "YOURACCESSKEY"
-              :aws-secret-key "YOURSECRETKEY"
-              :cu-username "yourwebusername"
-              :cu-password "yourwebpassword"
+{:user {:env {:aws-access-key     "YOURACCESSKEY"
+              :aws-secret-key     "YOURSECRETKEY"
+              :cu-bucket          "s3-bucket-you-want-your-logs-in"
+              :cu-username        "yourwebusername"
+              :cu-password        "yourwebpassword"
               :cu-workspaces-path "tmp/cu-workspaces"}}}
 ```
 
