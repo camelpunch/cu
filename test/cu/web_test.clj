@@ -72,12 +72,12 @@
                     (web-app (-> (request :delete "/logs") logged-in))
                     (create-git-repo repo-url
                                      {:pipeline
-                                      {:first-ls  {:repo   repo-url
-                                                   :script "ls"}
-                                       :downstream   {:second-ls   {:repo    repo-url
-                                                                    :script  "ls"}
-                                                      :hostname    {:repo    repo-url
-                                                                    :script  "hostname"}}}})
+                                      {:ls  {:repo   repo-url
+                                             :script "ls"}
+                                       :downstream   {:whoami     {:repo    repo-url
+                                                                   :script  "whoami"}
+                                                      :hostname   {:repo    repo-url
+                                                                   :script  "hostname"}}}})
                     (web-app (-> (request :post "/push") logged-in
                                  (body {:payload json-payload})))
                     (core/parser test-config)
@@ -88,8 +88,11 @@
                         :body
                         (split #"\n")))))
 
+(defn shell-output [command]
+  (trim-newline (:out (sh command))))
+
 (expect 3 (count log-output))
 (expect "cu.yml" (first log-output))
-(expect "cu.yml" (in (rest log-output)))
-(expect (trim-newline (:out (sh "hostname"))) (in (rest log-output)))
+(expect (shell-output "whoami") (in (rest log-output)))
+(expect (shell-output "hostname") (in (rest log-output)))
 
