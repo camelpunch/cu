@@ -71,7 +71,9 @@ Add the following to ~/.lein/profiles.clj.
               :cu-bucket          "s3-bucket-you-want-your-logs-in"
               :cu-username        "yourwebusername"
               :cu-password        "yourwebpassword"
-              :cu-workspaces-path "tmp/cu-workspaces"}}}
+              :cu-workspaces-path "tmp/cu-workspaces"
+              :cu-push-queue      "my-cu-pushes-from-github"
+              :cu-build-queue     "my-cu-builds-waiting-to-be-run"}}}
 ```
 
 Note that the above configuration keys correspond to environment variables that
@@ -88,13 +90,13 @@ In another shell, start a parser, which parses web pushes and queues them up
 for workers:
 
 ```shell
-CU_MAX_WAIT=9999999 lein run parser
+lein run parser
 ```
 
 In one or more other shells, start a worker, which runs builds:
 
 ```shell
-CU_MAX_WAIT=9999999 lein run worker
+lein run worker
 ```
 
 Create a fake payload file (to pretend GitHub has pushed):

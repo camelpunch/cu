@@ -1,6 +1,5 @@
 (ns cu.config
   (:require
-    [clj-yaml.core :as yaml]
     [environ.core :refer [env]]
     ))
 
@@ -10,16 +9,15 @@
     Long/MAX_VALUE))
 
 (defn retrieve-config [environment]
-  (-> (str (environment :home) "/cu.yml")
-      slurp
-      yaml/parse-string
-      (assoc :aws-credentials {:access-key (environment :aws-access-key)
-                               :secret-key (environment :aws-secret-key)}
-             :bucket          (environment :cu-bucket)
-             :cu-username     (environment :cu-username)
-             :cu-password     (environment :cu-password)
-             :queue-max-wait  (env-or-max environment :cu-max-wait)
-             :queue-period    (env-or-max environment :cu-period)
-             :workspaces-path (environment :cu-workspaces-path))))
+  {:aws-credentials {:access-key (environment :aws-access-key)
+                     :secret-key (environment :aws-secret-key)}
+   :bucket          (environment :cu-bucket)
+   :build-queue     (environment :cu-build-queue)
+   :push-queue      (environment :cu-push-queue)
+   :cu-username     (environment :cu-username)
+   :cu-password     (environment :cu-password)
+   :queue-max-wait  (or (environment :cu-max-wait) 500)
+   :queue-period    (env-or-max environment :cu-period)
+   :workspaces-path (environment :cu-workspaces-path)})
 
 (def config (retrieve-config env))
