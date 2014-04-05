@@ -2,7 +2,7 @@
 pipeline:
   test-web-app-units:
     script: "true"
-    repo: &web-repo https://github.com/camelpunch/cu-example-web-app
+    repo: &web-repo https://github.com/camelpunch/cu-example
   test-web-app-integrations:
     script: "true"
     repo: *web-repo
@@ -16,4 +16,4 @@ pipeline:
     downstream:
       test-ios-client-against-web-app:
         script: "ls"
-        repo: &ios-repo https://github.com/camelpunch/cu-example-ios-app
+        repo: &ios-repo https://github.com/camelpunch/cu-example
