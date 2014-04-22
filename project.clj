@@ -5,7 +5,7 @@
             :url "http://choosealicense.com/"}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [com.stuartsierra/component "0.2.1"]
-                 [com.cemerick/bandalore "0.0.5"]
+                 [com.taoensso/carmine "2.6.0"]
                  [environ "0.4.0"]]
   :profiles {:dev {:dependencies [[org.clojure/tools.namespace "0.2.4"]]
                    :source-paths ["dev"]}})

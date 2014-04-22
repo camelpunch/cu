@@ -1,20 +1,24 @@
 (ns com.camelpunch.cu
   (:require [com.stuartsierra.component :as component]
-            [cemerick.bandalore :as sqs]))
+            [taoensso.carmine.message-queue :as car-mq]))
 
-(defrecord QueueClient [access-key secret-key]
+(defrecord Queue [pool spec queue-name worker]
   component/Lifecycle
 
   (start [component]
-    (println ";; Creating SQS client")
-    (let [client (sqs/create-client access-key secret-key)]
-      (assoc component :client client)))
+    (let [conn {:pool pool :spec spec}
+          worker (car-mq/worker conn queue-name)]
+      (assoc component :worker worker)))
 
   (stop [component]
-    (println ";; Faking shutdown of SQS client")))
+    (car-mq/stop worker)))
+
+(defn new-queue [queue-name]
+  (map->Queue {:pool {}
+               :spec {}
+               :queue-name queue-name}))
 
 (defn build-system [config-options]
-  (let [{:keys [aws-access-key aws-secret-key]} config-options]
-    (component/system-map
-     :queue (QueueClient. aws-access-key aws-secret-key))))
-
+  (component/system-map
+   :build-queue (new-queue "builds")
+   :push-queue (new-queue "pushes")))
