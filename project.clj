@@ -8,4 +8,5 @@
                  [com.taoensso/carmine "2.6.0"]
                  [environ "0.4.0"]]
   :profiles {:dev {:dependencies [[org.clojure/tools.namespace "0.2.4"]]
+                   :plugins [[com.jakemccrary/lein-test-refresh "0.4.1"]]
                    :source-paths ["dev"]}})

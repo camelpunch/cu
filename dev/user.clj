@@ -12,8 +12,11 @@
    [clojure.test :as test]
    [clojure.tools.namespace.repl :refer (refresh refresh-all)]
    [com.camelpunch.cu :as app]
+   [com.camelpunch.cu.queue-redis :as q]
    [com.stuartsierra.component :as component]
-   [environ.core :refer [env]]))
+   [environ.core :refer [env]]
+   [taoensso.carmine :as car :refer [wcar]]
+   [taoensso.carmine.message-queue :refer [enqueue worker queue-status]]))
 
 (def system
   "A Var containing an object representing the application under
@@ -25,10 +28,7 @@
   #'system."
   []
   (alter-var-root #'system
-                  (constantly
-                   (app/build-system
-                    (select-keys env [:aws-access-key
-                                      :aws-secret-key])))))
+                  (constantly (app/build-system))))
 
 (defn start
   "Starts the system running, updates the Var #'system."
@@ -54,3 +54,12 @@
   []
   (stop)
   (refresh :after 'user/go))
+
+(def redisconn {:pool {}
+                :spec {:host "127.0.0.1"
+                       :port 6379}})
+
+(defn build-queue
+  []
+  (-> system
+      :build-queue))
