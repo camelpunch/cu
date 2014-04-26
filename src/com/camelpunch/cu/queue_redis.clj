@@ -16,17 +16,18 @@
         :connection conn)))
 
   (stop [component]
-    (car-mq/stop worker)))
+    (car-mq/stop worker)
+    component))
 
-(defn new-queue [name handler]
+(defn new-queue [name handler host port]
   (map->RedisQueue {:pool {}
-                    :spec {:host "127.0.0.1"
-                           :port 6379}
+                    :spec {:host host
+                           :port port}
                     :name name
                     :handler handler}))
 
 (defn enqueue [queue item]
-  (car/wcar (:connection queue) (car-mq/enqueue (:name queue) item)))
+  (wcar (:connection queue) (car-mq/enqueue (:name queue) item)))
 
 (defn length [queue]
   (count (:messages
