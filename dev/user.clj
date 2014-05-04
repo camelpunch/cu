@@ -55,6 +55,12 @@
   (stop)
   (refresh :after 'user/go))
 
+(defn t
+  []
+  (refresh)
+  (clojure.test/run-tests 'com.camelpunch.queue-redis-test
+                          'com.camelpunch.web-test))
+
 (def redisconn {:pool {}
                 :spec {:host "127.0.0.1"
                        :port 6379}})
