@@ -59,7 +59,7 @@
   []
   (refresh)
   (clojure.test/run-tests 'com.camelpunch.queue-redis-test
-                          'com.camelpunch.web-test))
+                          'com.camelpunch.web-application-test))
 
 (def redisconn {:pool {}
                 :spec {:host "127.0.0.1"

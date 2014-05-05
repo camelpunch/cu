@@ -1,7 +1,8 @@
 (ns com.camelpunch.cu
   (:require [com.stuartsierra.component :as component]
             [com.camelpunch.cu.queue-redis :refer [queue]]
-            [com.camelpunch.cu.web :refer [web]]))
+            [com.camelpunch.cu.web-application :refer [application]]
+            [com.camelpunch.cu.web-server-jetty :refer [web-server]]))
 
 (defn build-system []
   (let [queue-host "127.0.0.1"
@@ -11,4 +12,7 @@
     (component/system-map
      :build-queue (queue "builds" (fn []) queue-host queue-port)
      :push-queue (queue "pushes" (fn []) queue-host queue-port)
-     :web (web web-host web-port))))
+     :application (application)
+     :web-server (component/using
+                  (web-server web-host web-port)
+                  [:application]))))
