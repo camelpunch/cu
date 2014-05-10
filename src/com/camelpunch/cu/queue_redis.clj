@@ -19,7 +19,7 @@
     (car-mq/stop worker)
     component))
 
- (defn queue [name handler host port]
+(defn queue [name handler host port]
   (map->RedisQueue {:pool {}
                     :spec {:host host
                            :port port}

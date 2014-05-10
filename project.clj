@@ -4,6 +4,7 @@
   :license {:name "TODO: Choose a license"
             :url "http://choosealicense.com/"}
   :dependencies [[org.clojure/clojure "1.5.1"]
+                 [org.clojure/core.async "0.1.301.0-deb34a-alpha"]
                  [com.stuartsierra/component "0.2.1"]
                  [compojure "1.1.6"]
                  [com.taoensso/carmine "2.6.0"]

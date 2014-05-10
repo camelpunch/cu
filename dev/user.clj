@@ -2,6 +2,7 @@
   "Tools for interactive development with the REPL. This file should
   not be included in a production build of the application."
   (:require
+   [clojure.core.async :refer [<!! <! >! >!! alts!! close! put! take! thread chan go]]
    [clojure.java.io :as io]
    [clojure.java.javadoc :refer (javadoc)]
    [clojure.pprint :refer (pprint)]
@@ -42,7 +43,7 @@
   (alter-var-root #'system
                   (fn [s] (when s (component/stop s)))))
 
-(defn go
+(defn go-system
   "Initializes and starts the system running."
   []
   (init)
@@ -53,7 +54,7 @@
   "Stops the system, reloads modified source files, and restarts it."
   []
   (stop)
-  (refresh :after 'user/go))
+  (refresh :after 'user/go-system))
 
 (defn t
   []
